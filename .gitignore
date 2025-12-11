@@ -1,0 +1,8 @@
+# Node modules
+node_modules/
+
+# Local users database
+users.json
+
+# PM2 log files
+pm2-log-*
