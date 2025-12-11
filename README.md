@@ -1,11 +1,9 @@
-# V1LEFarm Bot GitHub Pack
+# V1LEFarm Telegram Bot
 
-## Safe Version (No Tokens in Files)
+## Quick Install (Termux/Linux)
 
-Before installation, set secrets:
-
-export BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-export ADMIN_IDS="6665237815,8031966101"
-
-## Install
-bash install_bot.sh
+1. Download and run bootstrap:
+```bash
+curl -sL https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack/refs/heads/main/bootstrap.sh -o bootstrap.sh
+chmod +x bootstrap.sh
+bash bootstrap.sh
