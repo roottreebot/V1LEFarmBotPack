@@ -149,10 +149,14 @@ async function sendOrEdit(id, text, opt = {}) {
     sessions[id].mainMsgId = m.message_id;
 }
 
-// ================= DELETE USER MESSAGES IMMEDIATELY =================
+// ================= DELETE USER MESSAGES AFTER 3 SECONDS =================
 bot.on('message', msg => {
     const id = msg.chat.id;
-    if (!msg.from.is_bot) bot.deleteMessage(id, msg.message_id).catch(() => {});
+    if (!msg.from.is_bot) {
+        setTimeout(() => {
+            bot.deleteMessage(id, msg.message_id).catch(() => {});
+        }, 3000); // 3 seconds
+    }
 });
 
 // ================= MAIN MENU WITH ORDER TRACKING & AGING =================
