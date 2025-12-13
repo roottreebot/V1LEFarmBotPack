@@ -1,12 +1,9 @@
-# V1LEFarm Telegram Bot
+RUN THIS:
 
-## Installation
-1. Set environment variables:
-   export BOT_TOKEN="your_bot_token_here"
-   export ADMIN_IDS="12345,67890"
+export BOT_TOKEN="INSERT-BOT-TOKEN-HERE"
+export ADMIN_IDS="INSERT-ADMIN-ID-HERE" (IF MULTIPLE USE , NO SPACE)
 
-2. Run bootstrap:
-   bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack/refs/heads/main/bootstrap.sh)"
+bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack/refs/heads/main/bootstrap.sh)"
 
 3. Check logs:
    pm2 logs v1lefarmbot
