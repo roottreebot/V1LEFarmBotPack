@@ -155,7 +155,7 @@ bot.on('message', msg => {
     if (!msg.from.is_bot) bot.deleteMessage(id, msg.message_id).catch(() => {});
 });
 
-// ================= MAIN MENU =================
+// ================= MAIN MENU WITH ORDER TRACKING & AGING =================
 async function showMainMenu(id) {
     ensureUser(id);
     sessions[id] = sessions[id] || {};
@@ -163,12 +163,24 @@ async function showMainMenu(id) {
 
     const kb = Object.keys(PRODUCTS).map(p => [{ text: `🌿 ${p}`, callback_data: `product_${p}` }]);
 
+    // Get all pending orders
+    const pendingOrders = users[id].orders.filter(o => o.status === 'Pending');
+    const now = Date.now();
+    const pendingTxt = pendingOrders.length
+        ? '📦 Pending Orders:\n' +
+          pendingOrders.map(o => {
+              const ageHours = Math.floor((now - o.time) / (1000 * 60 * 60));
+              const warning = ageHours >= 24 ? ' ⚠️' : '';
+              return `🌿 ${o.product} — ⚖️ ${o.grams}g — 💲 $${o.cash}${warning}`;
+          }).join('\n') + '\n\n'
+        : '';
+
     await sendOrEdit(id,
         `${HEADER}
 🎚 Level: *${users[id].level}*  
 📊 XP: ${xpBar(users[id].xp, users[id].level)}
 
-🛒 Select a product 👇
+${pendingTxt}🛒 Select a product 👇
 ${COMMANDS_TEXT}`,
         { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
     );
@@ -355,7 +367,7 @@ bot.on('callback_query', async q => {
         }
 
         addXP(id, 2);
-        // Update main menu to reflect new XP live
+        // Update main menu to reflect new XP and show pending orders
         showMainMenu(id);
     }
 
@@ -378,6 +390,8 @@ bot.on('callback_query', async q => {
                 : `❌ Your order for *${lastOrder.product}* has been rejected.`,
             { parse_mode: 'Markdown' }
         );
+
+        if (sessions[uid]) showMainMenu(uid); // update user menu after admin action
 
         if (s.adminMsgIds) {
             for (const { adminId, msgId } of s.adminMsgIds) {
