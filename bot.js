@@ -111,11 +111,12 @@ function xpBar(xp, lvl) {
 // ================= MOBILE-FRIENDLY ASCII =================
 const HEADER = `
 \`\`\`
-██    ██  ██ ██      ███████ 
-██    ██ ███ ██      ██      
-██    ██  ██ ██      █████   
- ██  ██   ██ ██      ██      
-  ████    ██ ███████ ███████                   
+█V   V  1  L     EEEEE 
+V   V 11  L     E     
+V   V  1  L     EEEE  
+ V V   1  L     E     
+  V   111 LLLLL EEEEE 
+                                         
         V 1 L E   F A R M
 \`\`\`
 `;
