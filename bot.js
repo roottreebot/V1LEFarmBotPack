@@ -1,6 +1,5 @@
 // === V1LE FARM BOT ===
 // High-traffic | Aesthetic UI | Orders | Leaderboards | Admin Suite
-
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -112,12 +111,11 @@ function xpBar(xp, lvl) {
 // ================= ASCII =================
 const HEADER = `
 \`\`\`
-██   ██  ██ ██       ███████
-██   ██  ██ ██       ██
-██   ██  ██ ██       █████ 
-██   ██  ██ ██       ██ 
-  ████   ██ ████████████
-     
+███    ██ ██ ██      ███████╗
+████   ██ ██ ██      ██╔════╝
+██ ██  ██ ██ ██      █████╗  
+██  ██ ██ ██ ██      ██╔══╝  
+██   ████ ██ ███████ ███████╗
         V 1 L E   F A R M
 \`\`\`
 `;
@@ -241,8 +239,8 @@ bot.onText(/\/stats/, msg => {
         orders += u.orders.length;
         u.orders.forEach(o => {
             if (o.status === 'Pending') pending++;
-            if (o.status === 'Accepted') accepted++;
-            if (o.status === 'Rejected') rejected++;
+            if (o.status === '✅ Accepted') accepted++;
+            if (o.status === '❌ Rejected') rejected++;
         });
     }
 
@@ -307,11 +305,13 @@ bot.on('callback_query', async q => {
         users[id].orders.push(order);
         saveAll();
 
-        for (const a of ADMIN_IDS) {
-            const uname = q.from.username ? `@${q.from.username}` : q.from.first_name;
-            const link = `[${uname}](tg://user?id=${id})`;
-            await bot.sendMessage(a,
-                `📦 *NEW ORDER*  
+        const uname = q.from.username ? `@${q.from.username}` : q.from.first_name;
+        const link = `[${uname}](tg://user?id=${id})`;
+
+        for (const adminId of ADMIN_IDS) {
+            const sentMsg = await bot.sendMessage(adminId,
+                `${HEADER}
+📦 *New Order Received*  
 👤 User: ${link}  
 🌿 Product: *${order.product}*  
 ⚖️ Grams: *${order.grams}g*  
@@ -326,6 +326,9 @@ bot.on('callback_query', async q => {
                     }
                 }
             );
+
+            if (!s.adminMsgIds) s.adminMsgIds = [];
+            s.adminMsgIds.push({ adminId, msgId: sentMsg.message_id });
         }
 
         addXP(id, 2);
@@ -351,10 +354,19 @@ bot.on('callback_query', async q => {
             { parse_mode: 'Markdown' }
         );
 
-        bot.editMessageText(
-            `${q.message.text}\n\n*${act === 'accept' ? '✅ ACCEPTED' : '❌ REJECTED'}*`,
-            { chat_id: q.message.chat.id, message_id: q.message.message_id, parse_mode: 'Markdown' }
-        );
+        // Edit admin messages to show processed
+        if (s.adminMsgIds) {
+            for (const { adminId, msgId } of s.adminMsgIds) {
+                bot.editMessageText(
+                    `${HEADER}\n📦 *Order Processed*  
+👤 User: ${link}  
+🌿 Product: *${lastOrder.product}*  
+⚖️ Grams: *${lastOrder.grams}g*  
+💲 Price: *$${lastOrder.cash}*\n\n*${act === 'accept' ? '✅ ACCEPTED' : '❌ REJECTED'}*`,
+                    { chat_id: adminId, message_id: msgId, parse_mode: 'Markdown' }
+                ).catch(() => {});
+            }
+        }
     }
 });
 
@@ -362,10 +374,17 @@ bot.on('callback_query', async q => {
 bot.on('message', msg => {
     const id = msg.chat.id;
     const username = msg.from.username;
-    if (!sessions[id] || sessions[id].step !== 'amount') return;
-    if (msg.text.startsWith('/')) return;
 
-    bot.deleteMessage(id, msg.message_id).catch(() => {});
+    // Delete all user messages after 500ms
+    if (!msg.from.is_bot) {
+        setTimeout(() => {
+            bot.deleteMessage(id, msg.message_id).catch(() => {});
+        }, 500);
+    }
+
+    // Skip if not in order flow
+    if (!sessions[id] || sessions[id].step !== 'amount') return;
+
     ensureUser(id, username);
     const s = sessions[id];
     const price = PRODUCTS[s.product].price;
