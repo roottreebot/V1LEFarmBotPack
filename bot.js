@@ -1,5 +1,5 @@
 // === V1LE FARM BOT ===
-// High-traffic | Aesthetic UI | Orders | Leaderboards | Admin Suite
+// High-traffic | Mobile-optimized ASCII | Orders | Leaderboards | Admin Suite
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -108,14 +108,15 @@ function xpBar(xp, lvl) {
     return '🟥'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
 }
 
-// ================= ASCII =================
+// ================= MOBILE-FRIENDLY ASCII =================
 const HEADER = `
 \`\`\`
-███    ██ ██ ██      ███████╗
-████   ██ ██ ██      ██╔════╝
-██ ██  ██ ██ ██      █████╗  
-██  ██ ██ ██ ██      ██╔══╝  
-██   ████ ██ ███████ ███████╗
+ __     __  _____  _      ______ _____ 
+ \\ \\   / / |  __ \\| |    |  ____|  __ \\
+  \\ \\_/ /  | |__) | |    | |__  | |__) |
+   \\   /   |  ___/| |    |  __| |  _  / 
+    | |    | |    | |____| |____| | \\ \\ 
+    |_|    |_|    |______|______|_|  \\_\\
         V 1 L E   F A R M
 \`\`\`
 `;
@@ -354,7 +355,6 @@ bot.on('callback_query', async q => {
             { parse_mode: 'Markdown' }
         );
 
-        // Edit admin messages to show processed
         if (s.adminMsgIds) {
             for (const { adminId, msgId } of s.adminMsgIds) {
                 bot.editMessageText(
