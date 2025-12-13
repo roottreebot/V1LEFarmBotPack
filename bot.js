@@ -58,7 +58,7 @@ function sendToAdmins(msg, options={}) {
 // --- Show product selection ---
 function showProducts(chatId){
     const keyboard = Object.keys(PRODUCTS).map(p => [{ text: p, callback_data:`product_${p}` }]);
-    bot.sendMessage(chatId, "Select a product to order:", { reply_markup:{ inline_keyboard: keyboard } }).catch(()=>{});
+    bot.sendMessage(chatId, "RootTree💥 Select a product to order:", { reply_markup:{ inline_keyboard: keyboard } }).catch(()=>{});
 }
 
 // --- Start command ---
@@ -68,7 +68,7 @@ bot.onText(/\/start/, msg => {
     if(!sessions[chatId]) sessions[chatId] = {};
 
     showProducts(chatId);
-    bot.sendMessage(chatId, `Your Level: ${users[chatId].level}  XP: ${xpBar(users[chatId].xp, users[chatId].level)}`);
+    bot.sendMessage(chatId, `🌟 Your Level: ${users[chatId].level}  XP: ${xpBar(users[chatId].xp, users[chatId].level)}`);
 });
 
 // --- Inline button handler ---
