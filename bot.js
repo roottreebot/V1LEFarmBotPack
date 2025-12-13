@@ -1,5 +1,5 @@
 // === V1LE FARM BOT ===
-// High-traffic | Clean UI | Auto cleanup | Anti-spam
+// High-traffic | Clean UI | Anti-spam | Order History | Profile
 // ENV: BOT_TOKEN, ADMIN_IDS=123,456
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -24,6 +24,13 @@ let users = fs.existsSync(DB_FILE)
     ? JSON.parse(fs.readFileSync(DB_FILE))
     : {};
 
+function ensureUser(chatId) {
+    if (!users[chatId]) {
+        users[chatId] = { xp: 0, level: 1, orders: [] };
+    }
+    if (!users[chatId].orders) users[chatId].orders = [];
+}
+
 let saveTimeout = null;
 function saveUsersDebounced() {
     clearTimeout(saveTimeout);
@@ -38,10 +45,17 @@ const PRODUCTS = {
     'Killer Green Budz': { price: 10 }
 };
 
-const sessions = {};
+const COMMANDS_TEXT = `
+📜 *Available Commands*
 
-// ================= RATE LIMITER =================
-const lastAction = {}; // chatId -> timestamp
+/start – Open menu
+/profile – View your profile
+/help – Show commands
+`;
+
+// ================= SESSION / RATE LIMIT =================
+const sessions = {};
+const lastAction = {};
 const RATE_LIMIT_MS = 1200;
 
 function isRateLimited(chatId) {
@@ -56,7 +70,7 @@ function isRateLimited(chatId) {
 }
 
 // ================= CLEAN MESSAGE SYSTEM =================
-const botMessages = {}; // chatId -> msgId
+const botMessages = {};
 
 async function safeDelete(chatId, msgId) {
     try { await bot.deleteMessage(chatId, msgId); } catch {}
@@ -69,9 +83,16 @@ async function sendCleanMessage(chatId, text, options = {}) {
     return sent;
 }
 
+async function sendCleanPhoto(chatId, photo, options = {}) {
+    if (botMessages[chatId]) safeDelete(chatId, botMessages[chatId]);
+    const sent = await bot.sendPhoto(chatId, photo, options);
+    botMessages[chatId] = sent.message_id;
+    return sent;
+}
+
 // ================= XP SYSTEM =================
 function addXP(chatId, xp) {
-    if (!users[chatId]) users[chatId] = { xp: 0, level: 1 };
+    ensureUser(chatId);
     users[chatId].xp += xp;
 
     let leveled = false;
@@ -104,8 +125,14 @@ const HEADER = `
 \`\`\`
 `;
 
-// ================= MENU =================
-function showMenu(chatId) {
+// ================= START =================
+bot.onText(/\/start/, msg => {
+    const chatId = msg.chat.id;
+    if (isRateLimited(chatId)) return;
+
+    ensureUser(chatId);
+    sessions[chatId] = {};
+
     const keyboard = Object.keys(PRODUCTS).map(p => [
         { text: `🌿 ${p}`, callback_data: `product_${p}` }
     ]);
@@ -113,21 +140,63 @@ function showMenu(chatId) {
     sendCleanMessage(
         chatId,
         `${HEADER}
-🛒 *ORDER MENU*
-Select a product below 👇`,
+👤 *Your Profile*
+🎚 Level: *${users[chatId].level}*
+📊 XP: ${xpBar(users[chatId].xp, users[chatId].level)}
+
+🛒 *Order Menu*
+Select a product below 👇
+${COMMANDS_TEXT}`,
         { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } }
     );
-}
+});
 
-// ================= START =================
-bot.onText(/\/start/, msg => {
+// ================= HELP =================
+bot.onText(/\/help/, msg => {
     const chatId = msg.chat.id;
     if (isRateLimited(chatId)) return;
 
-    if (!users[chatId]) users[chatId] = { xp: 0, level: 1 };
-    sessions[chatId] = {};
+    sendCleanMessage(chatId, `${HEADER}\n${COMMANDS_TEXT}`, { parse_mode: 'Markdown' });
+});
 
-    showMenu(chatId);
+// ================= PROFILE =================
+bot.onText(/\/profile/, async msg => {
+    const chatId = msg.chat.id;
+    if (isRateLimited(chatId)) return;
+
+    ensureUser(chatId);
+
+    const history =
+        users[chatId].orders.length === 0
+            ? '_No orders yet_'
+            : users[chatId].orders
+                  .slice(-5)
+                  .reverse()
+                  .map(o =>
+                      `• ${o.product} – ${o.grams}g – $${o.cash} – *${o.status}*`
+                  )
+                  .join('\n');
+
+    const caption = `${HEADER}
+👤 *User Profile*
+
+🎚 Level: *${users[chatId].level}*
+📊 XP: ${xpBar(users[chatId].xp, users[chatId].level)}
+
+📦 *Recent Orders*
+${history}
+
+${COMMANDS_TEXT}`;
+
+    try {
+        const photos = await bot.getUserProfilePhotos(chatId, { limit: 1 });
+        if (photos.total_count > 0) {
+            const fileId = photos.photos[0].pop().file_id;
+            return sendCleanPhoto(chatId, fileId, { caption, parse_mode: 'Markdown' });
+        }
+    } catch {}
+
+    sendCleanMessage(chatId, caption, { parse_mode: 'Markdown' });
 });
 
 // ================= CALLBACKS =================
@@ -138,10 +207,10 @@ bot.on('callback_query', async q => {
     const msgId = q.message.message_id;
     const data = q.data;
 
+    ensureUser(chatId);
     if (!sessions[chatId]) sessions[chatId] = {};
     const s = sessions[chatId];
 
-    // PRODUCT SELECT
     if (data.startsWith('product_')) {
         s.product = data.replace('product_', '');
         s.step = 'amount';
@@ -149,21 +218,30 @@ bot.on('callback_query', async q => {
         bot.editMessageText(
             `${HEADER}
 🌿 *${s.product}*
-
 ▫️ Minimum: *2g*
 ▫️ Price: *$10/g*
 
-✏️ Send grams (2.5)
-💲 Or $ amount ($25)`,
+✏️ Send grams or $ amount`,
             { chat_id: chatId, message_id: msgId, parse_mode: 'Markdown' }
         );
         return;
     }
 
-    // CONFIRM (LOCKED)
     if (data === 'confirm_order') {
         if (s.locked) return;
         s.locked = true;
+
+        const order = {
+            product: s.product,
+            grams: s.grams,
+            cash: s.cash,
+            status: 'Pending',
+            time: Date.now()
+        };
+
+        users[chatId].orders.push(order);
+        users[chatId].orders = users[chatId].orders.slice(-10);
+        saveUsersDebounced();
 
         s.adminMsgs = [];
         for (const adminId of ADMIN_IDS) {
@@ -193,8 +271,6 @@ bot.on('callback_query', async q => {
             chatId,
             `${HEADER}
 📨 *Order Sent*
-
-🎚 Level: *${users[chatId].level}*
 📊 ${xpBar(users[chatId].xp, users[chatId].level)}
 ${leveled ? '\n🎉 *LEVEL UP!*' : ''}`,
             { parse_mode: 'Markdown' }
@@ -202,42 +278,25 @@ ${leveled ? '\n🎉 *LEVEL UP!*' : ''}`,
         return;
     }
 
-    // CANCEL
-    if (data === 'cancel_order') {
-        sessions[chatId] = {};
-        sendCleanMessage(chatId, `${HEADER}\n❌ *Order Cancelled*`, { parse_mode: 'Markdown' });
-        return;
-    }
-
-    // ADMIN ACTION
     if (data.startsWith('admin_')) {
         const [, action, userId] = data.split('_');
-        const us = sessions[userId];
-        if (!us) return;
+        ensureUser(userId);
+
+        const lastOrder = users[userId].orders.at(-1);
+        if (lastOrder) lastOrder.status = action === 'accept' ? 'Accepted' : 'Rejected';
 
         bot.sendMessage(
             userId,
-            action === 'accept'
-                ? '✅ *Order Accepted*'
-                : '❌ *Order Rejected*',
+            action === 'accept' ? '✅ *Order Accepted*' : '❌ *Order Rejected*',
             { parse_mode: 'Markdown' }
         );
 
-        for (const m of us.adminMsgs || []) {
-            bot.editMessageText(
-                `📦 *ORDER ${action.toUpperCase()}*
-🌿 ${us.product}
-⚖️ ${us.grams}g
-💲 $${us.cash}`,
-                { chat_id: m.adminId, message_id: m.msgId, parse_mode: 'Markdown' }
-            ).catch(() => {});
-        }
-
+        saveUsersDebounced();
         sessions[userId] = {};
     }
 });
 
-// ================= USER INPUT (AUTO DELETE + RATE LIMIT) =================
+// ================= USER INPUT =================
 bot.on('message', async msg => {
     const chatId = msg.chat.id;
     if (!sessions[chatId] || sessions[chatId].step !== 'amount') return;
@@ -259,13 +318,11 @@ bot.on('message', async msg => {
         cash = parseFloat(text.slice(1));
         if (isNaN(cash) || cash < price * 2)
             return sendCleanMessage(chatId, '❌ Minimum $20');
-
         grams = +(cash / price).toFixed(1);
     } else {
         grams = parseFloat(text);
         if (isNaN(grams) || grams < 2)
             return sendCleanMessage(chatId, '❌ Minimum 2g');
-
         grams = Math.round(grams * 2) / 2;
         cash = +(grams * price).toFixed(2);
     }
@@ -278,7 +335,6 @@ bot.on('message', async msg => {
         chatId,
         `${HEADER}
 🧾 *Order Summary*
-
 🌿 ${s.product}
 ⚖️ ${grams}g
 💲 $${cash}`,
