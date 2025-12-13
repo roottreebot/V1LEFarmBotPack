@@ -1,5 +1,5 @@
 // === V1LE FARM BOT ===
-// High-traffic | Clean UI | Orders | Leaderboards | Full Admin Suite
+// High-traffic | Aesthetic UI | Orders | Leaderboards | Admin Suite
 
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
@@ -26,19 +26,21 @@ let meta = fs.existsSync(META_FILE)
     ? JSON.parse(fs.readFileSync(META_FILE))
     : { weeklyReset: Date.now() };
 
-function ensureUser(id) {
+function ensureUser(id, username) {
     if (!users[id]) {
         users[id] = {
             xp: 0,
             weeklyXp: 0,
             level: 1,
             orders: [],
-            banned: false
+            banned: false,
+            username: username || ''
         };
     }
     if (users[id].weeklyXp === undefined) users[id].weeklyXp = 0;
     if (users[id].banned === undefined) users[id].banned = false;
     if (!users[id].orders) users[id].orders = [];
+    if (username) users[id].username = username;
 }
 
 let saveTimer;
@@ -80,6 +82,14 @@ const PRODUCTS = {
     'Killer Green Budz': { price: 10 }
 };
 
+const COMMANDS_TEXT = `
+📜 *Commands*
+/start – Order menu
+/profile – Your profile & orders
+/top – Weekly leaderboard
+/help – Commands
+`;
+
 // ================= XP =================
 function addXP(id, xp) {
     ensureUser(id);
@@ -120,53 +130,88 @@ async function sendClean(id, text, opt = {}) {
     lastMsg[id] = m.message_id;
 }
 
+// ================= SESSION / RATE LIMIT =================
+const sessions = {};
+const lastAction = {};
+const RATE_LIMIT_MS = 1200;
+
+function isRateLimited(id) {
+    const now = Date.now();
+    if (!lastAction[id]) {
+        lastAction[id] = now;
+        return false;
+    }
+    if (now - lastAction[id] < RATE_LIMIT_MS) return true;
+    lastAction[id] = now;
+    return false;
+}
+
 // ================= START =================
 bot.onText(/\/start/, msg => {
     const id = msg.chat.id;
-    if (banGuard(id)) return;
+    const username = msg.from.username;
+    if (banGuard(id) || isRateLimited(id)) return;
 
-    ensureUser(id);
+    ensureUser(id, username);
+    sessions[id] = {};
 
     const kb = Object.keys(PRODUCTS).map(p => [{ text: `🌿 ${p}`, callback_data: `product_${p}` }]);
 
     sendClean(id,
         `${HEADER}
-🎚 Level: *${users[id].level}*
+🎚 Level: *${users[id].level}*  
 📊 XP: ${xpBar(users[id].xp, users[id].level)}
 
-Commands:
-/profile /top /help`,
+🛒 Select a product 👇
+${COMMANDS_TEXT}`,
         { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
     );
 });
 
-// ================= PROFILE =================
-bot.onText(/\/profile/, msg => {
+// ================= HELP =================
+bot.onText(/\/help/, msg => {
     const id = msg.chat.id;
     if (banGuard(id)) return;
+    sendClean(id, `${HEADER}\n${COMMANDS_TEXT}`, { parse_mode: 'Markdown' });
+});
 
-    ensureUser(id);
+// ================= PROFILE =================
+bot.onText(/\/profile/, async msg => {
+    const id = msg.chat.id;
+    const username = msg.from.username;
+    if (banGuard(id) || isRateLimited(id)) return;
+
+    ensureUser(id, username);
 
     const orders = users[id].orders.slice(-5).reverse()
-        .map(o => `• ${o.product} ${o.grams}g $${o.cash} *${o.status}*`)
-        .join('\n') || '_No orders_';
+        .map(o => `• ${o.product} — ${o.grams}g — $${o.cash} — *${o.status}*`)
+        .join('\n') || '_No orders yet_';
 
-    sendClean(id,
-        `${HEADER}
-🎚 Level: *${users[id].level}*
+    const caption = `${HEADER}
+🎚 Level: *${users[id].level}*  
 📊 XP: ${xpBar(users[id].xp, users[id].level)}
 
-📦 Orders
-${orders}`,
-        { parse_mode: 'Markdown' }
-    );
+📦 Recent Orders:
+${orders}
+
+${COMMANDS_TEXT}`;
+
+    try {
+        const photos = await bot.getUserProfilePhotos(id, { limit: 1 });
+        if (photos.total_count > 0) {
+            const fileId = photos.photos[0].pop().file_id;
+            return sendClean(id, caption, { parse_mode: 'Markdown' });
+        }
+    } catch {}
+
+    sendClean(id, caption, { parse_mode: 'Markdown' });
 });
 
 // ================= LEADERBOARD =================
 bot.onText(/\/top/, msg => {
     checkWeeklyReset();
     const id = msg.chat.id;
-    if (banGuard(id)) return;
+    if (banGuard(id) || isRateLimited(id)) return;
 
     const top = Object.entries(users)
         .filter(([, u]) => !u.banned)
@@ -175,7 +220,9 @@ bot.onText(/\/top/, msg => {
 
     let txt = `${HEADER}\n🏆 *Weekly Top Farmers*\n\n`;
     top.forEach(([uid, u], i) => {
-        txt += `#${i + 1} Level ${u.level} — XP ${u.weeklyXp}\n`;
+        const uname = u.username ? `@${u.username}` : 'User';
+        const link = `[${uname}](tg://user?id=${uid})`;
+        txt += `#${i + 1} — ${link} — Level ${u.level} — XP ${u.weeklyXp}\n`;
     });
 
     sendClean(id, txt, { parse_mode: 'Markdown' });
@@ -233,13 +280,12 @@ bot.onText(/\/unban (\d+)/, msg => {
 });
 
 // ================= ORDER FLOW =================
-const sessions = {};
-
 bot.on('callback_query', async q => {
     const id = q.message.chat.id;
+    const username = q.from.username;
     if (banGuard(id)) return;
 
-    ensureUser(id);
+    ensureUser(id, username);
     if (!sessions[id]) sessions[id] = {};
     const s = sessions[id];
 
@@ -247,23 +293,31 @@ bot.on('callback_query', async q => {
         s.product = q.data.replace('product_', '');
         s.step = 'amount';
         return bot.editMessageText(
-            `${HEADER}\nSend grams or $ amount`,
+            `${HEADER}\n🌿 *${s.product}*  
+▫️ Minimum: 2g  
+▫️ Price: $10/g  
+
+✏️ Send grams or $ amount`,
             { chat_id: id, message_id: q.message.message_id, parse_mode: 'Markdown' }
         );
     }
 
     if (q.data === 'confirm_order') {
-        const price = PRODUCTS[s.product].price;
         const order = { ...s, status: 'Pending', time: Date.now() };
         users[id].orders.push(order);
         saveAll();
 
         for (const a of ADMIN_IDS) {
+            const uname = q.from.username ? `@${q.from.username}` : q.from.first_name;
+            const link = `[${uname}](tg://user?id=${id})`;
             await bot.sendMessage(a,
-                `📦 ORDER
-User: ${id}
-${order.product} ${order.grams}g $${order.cash}`,
+                `📦 *NEW ORDER*  
+👤 User: ${link}  
+🌿 Product: *${order.product}*  
+⚖️ Grams: *${order.grams}g*  
+💲 Price: *$${order.cash}*`,
                 {
+                    parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [[
                             { text: '✅ Accept', callback_data: `admin_accept_${id}` },
@@ -275,24 +329,31 @@ ${order.product} ${order.grams}g $${order.cash}`,
         }
 
         addXP(id, 2);
-        sendClean(id, `${HEADER}\n📨 Order sent`, { parse_mode: 'Markdown' });
+        sendClean(id, `${HEADER}\n📨 *Your order has been sent to the admins*`, { parse_mode: 'Markdown' });
     }
 
     if (q.data.startsWith('admin_')) {
         const [, act, uid] = q.data.split('_');
-        const o = users[uid].orders.at(-1);
-        if (!o || o.status !== 'Pending') return;
+        ensureUser(uid);
 
-        o.status = act === 'accept' ? 'Accepted' : 'Rejected';
+        const lastOrder = users[uid].orders.at(-1);
+        if (!lastOrder || lastOrder.status !== 'Pending') return;
+
+        lastOrder.status = act === 'accept' ? '✅ Accepted' : '❌ Rejected';
         saveAll();
 
+        const uname = users[uid].username ? `@${users[uid].username}` : 'User';
+        const link = `[${uname}](tg://user?id=${uid})`;
         bot.sendMessage(uid,
-            act === 'accept' ? '✅ Order accepted' : '❌ Order rejected'
+            act === 'accept'
+                ? `✅ Your order for *${lastOrder.product}* has been accepted!`
+                : `❌ Your order for *${lastOrder.product}* has been rejected.`,
+            { parse_mode: 'Markdown' }
         );
 
         bot.editMessageText(
-            `${q.message.text}\n\n${act === 'accept' ? '✅ ACCEPTED' : '❌ REJECTED'}`,
-            { chat_id: q.message.chat.id, message_id: q.message.message_id }
+            `${q.message.text}\n\n*${act === 'accept' ? '✅ ACCEPTED' : '❌ REJECTED'}*`,
+            { chat_id: q.message.chat.id, message_id: q.message.message_id, parse_mode: 'Markdown' }
         );
     }
 });
@@ -300,10 +361,12 @@ ${order.product} ${order.grams}g $${order.cash}`,
 // ================= USER INPUT =================
 bot.on('message', msg => {
     const id = msg.chat.id;
+    const username = msg.from.username;
     if (!sessions[id] || sessions[id].step !== 'amount') return;
     if (msg.text.startsWith('/')) return;
 
     bot.deleteMessage(id, msg.message_id).catch(() => {});
+    ensureUser(id, username);
     const s = sessions[id];
     const price = PRODUCTS[s.product].price;
     const t = msg.text.trim();
@@ -324,8 +387,10 @@ bot.on('message', msg => {
 
     sendClean(id,
         `${HEADER}
-🧾 ${s.product}
-${grams}g — $${cash}`,
+🧾 *Order Summary*  
+🌿 ${s.product}  
+⚖️ ${grams}g  
+💲 $${cash}`,
         {
             parse_mode: 'Markdown',
             reply_markup: {
