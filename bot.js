@@ -67,8 +67,6 @@ const PRODUCTS={
   'Killer Green Budz':{price:10}
 };
 
-const COMMANDS_TEXT="📜 *Commands*\n/start – Main Menu\n/help – Commands";
-
 // ================= XP =================
 function addXP(id,xp){
   ensureUser(id);
@@ -87,7 +85,7 @@ function xpBar(xp,lvl){
 // ================= ASCII =================
 const ASCII_MAIN=`
 ╔═════════╗
-║  V1LE FARM
+║  ROOTTREE
 ╚═════════╝
 V1LE FARM
 `;
