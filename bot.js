@@ -9,8 +9,12 @@ const ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(N
 if (!TOKEN || !ADMIN_IDS.length) { console.error('❌ Missing BOT_TOKEN or ADMIN_IDS'); process.exit(1); }
 
 // ================== BOT ==================
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(TOKEN, { polling: { interval: 1000, autoStart: true, params: { drop_pending_updates: true } } });
 console.log('✅ Bot running');
+
+// Debug logging
+bot.on('polling_error', err => console.log('Polling error:', err));
+bot.on('message', msg => console.log('Received message:', msg.text));
 
 // ================== FILES ==================
 const DB_FILE = 'users.json';
@@ -34,7 +38,7 @@ function saveAll() {
 
 // ================== HELPERS ==================
 function ensureUser(id, username) {
-  if (!users[id]) users[id] = { xp:0, weeklyXp:0, level:1, orders:[], banned:false, username: username||'' };
+  if (!users[id]) users[id] = { xp:0, weeklyXp:0, level:1, orders:[], banned:false, username:username||'' };
   if (username) users[id].username = username;
 }
 function isAdmin(id) { return ADMIN_IDS.includes(id); }
@@ -67,16 +71,10 @@ function checkWeeklyReset(){ if(Date.now()-meta.weeklyReset>=WEEK_MS){ for(const
 function isRateLimited(id){ const now=Date.now(); if(!lastAction[id]){ lastAction[id]=now; return false;} if(now-lastAction[id]<RATE_LIMIT_MS) return true; lastAction[id]=now; return false; }
 
 // ================== SEND OR EDIT ==================
-async function sendOrEdit(id,text,opt={}){ 
-  if(!sessions[id]) sessions[id]={}; 
-  const mid=sessions[id].mainMsgId; 
-  try{ 
-    if(mid){ await bot.editMessageText(text,{chat_id:id,message_id:mid,...opt}); return; } 
-  }catch{} 
-  const m=await bot.sendMessage(id,text,opt); 
-  sessions[id].mainMsgId=m.message_id; 
-  saveAll(); 
-}
+async function sendOrEdit(id,text,opt={}){ if(!sessions[id]) sessions[id]={}; const mid=sessions[id].mainMsgId; try{ if(mid){ await bot.editMessageText(text,{chat_id:id,message_id:mid,...opt}); return;} }catch{} const m=await bot.sendMessage(id,text,opt); sessions[id].mainMsgId=m.message_id; saveAll(); }
+
+// ================== DELETE USER MESSAGES ==================
+bot.on('message', msg=>{ const id=msg.chat.id; if(!msg.from.is_bot){ setTimeout(()=>bot.deleteMessage(id,msg.message_id).catch(()=>{}),3000); } });
 
 // ================== MAIN MENU ==================
 async function showMainMenu(id){
@@ -93,10 +91,10 @@ ${pendingTxt}🛒 Select a product`,{parse_mode:'Markdown', reply_markup:{inline
 }
 
 // ================== COMMANDS ==================
-bot.onText(/\/start/, msg=>{ const id=msg.chat.id; if(banGuard(id)) return; showMainMenu(id); });
+bot.onText(/\/start/, msg=>{ const id=msg.chat.id; if(banGuard(id)||isRateLimited(id)) return; showMainMenu(id); });
 bot.onText(/\/help/, msg=>{ const id=msg.chat.id; if(banGuard(id)) return; showMainMenu(id); });
 bot.onText(/\/profile/, msg=>{
-  const id=msg.chat.id; if(banGuard(id)) return; ensureUser(id,msg.from.username);
+  const id=msg.chat.id; if(banGuard(id)||isRateLimited(id)) return; ensureUser(id,msg.from.username);
   const orders=users[id].orders.slice(-5).reverse().map(o=>`• ${o.product} — ${o.grams}g — $${o.cash} — *${o.status}*`).join('\n')||'_No orders yet_';
   sendOrEdit(id,`${HEADER}
 🎚 Level: *${users[id].level}*
@@ -106,14 +104,12 @@ bot.onText(/\/profile/, msg=>{
 ${orders}`,{parse_mode:'Markdown', reply_markup:{inline_keyboard:[[ {text:'🏠 Back to Menu', callback_data:'back_main'} ]]}} );
 });
 bot.onText(/\/top/, msg=>{
-  const id=msg.chat.id; if(banGuard(id)) return; checkWeeklyReset();
+  const id=msg.chat.id; if(banGuard(id)||isRateLimited(id)) return; checkWeeklyReset();
   const top=Object.entries(users).filter(([,u])=>!u.banned).sort((a,b)=>b[1].weeklyXp-a[1].weeklyXp).slice(0,10);
   let txt=`${HEADER}\n🏆 *Weekly Top Farmers*\n\n`;
   top.forEach(([uid,u],i)=>{ const uname=u.username?`@${u.username}`:'User'; const link=`[${uname}](tg://user?id=${uid})`; txt+=`#${i+1} — ${link} — Level ${u.level} — XP ${u.weeklyXp}\n`; });
   sendOrEdit(id,txt,{parse_mode:'Markdown', reply_markup:{inline_keyboard:[[ {text:'🏠 Back to Menu', callback_data:'back_main'} ]]});
 });
-
-// ================== ADMIN / STATS / CSV ==================
 bot.onText(/\/stats/, msg=>{
   if(!isAdmin(msg.chat.id)) return;
   let total=0, banned=0, orders=0, pending=0, accepted=0, rejected=0;
@@ -132,7 +128,6 @@ Orders: ${orders}
 ❌ Rejected: ${rejected}
 💰 Total Revenue: $${meta.sales.totalRevenue}`,{parse_mode:'Markdown'});
 });
-
 bot.onText(/\/export/, msg=>{
   if(!isAdmin(msg.chat.id)) return;
   const orders=[];
@@ -153,14 +148,17 @@ bot.on('callback_query', async q=>{
   if(!sessions[id]) sessions[id]={};
   const s=sessions[id];
 
+  // Back to menu
   if(q.data==='back_main') return showMainMenu(id);
 
+  // Product selected
   if(q.data.startsWith('product_')){
     s.product=q.data.replace('product_','');
     s.step='amount';
     return sendOrEdit(id,`${HEADER}\n🌿 *${s.product}*\n▫️ Minimum: 2g\n▫️ Price: $${PRODUCTS[s.product].price}/g\n\n✏️ Send grams or $ amount`,{parse_mode:'Markdown'});
   }
 
+  // Confirm order
   if(q.data==='confirm_order'){
     const order={ product:s.product, grams:s.grams, cash:s.cash, status:'Pending', time:Date.now() };
     users[id].orders.push(order);
@@ -168,6 +166,7 @@ bot.on('callback_query', async q=>{
     saveAll();
     addXP(id,2);
 
+    // Notify admins
     const uname=username?`@${username}`:q.from.first_name;
     const link=`[${uname}](tg://user?id=${id})`;
     for(const adminId of ADMIN_IDS){
@@ -182,6 +181,7 @@ bot.on('callback_query', async q=>{
     return showMainMenu(id);
   }
 
+  // Admin action
   if(q.data.startsWith('admin_')){
     const [,act,uid]=q.data.split('_'); ensureUser(uid);
     const lastOrder=users[uid].orders.at(-1);
@@ -201,35 +201,18 @@ bot.on('callback_query', async q=>{
 });
 
 // ================== USER MESSAGE INPUT (GRAMS/$) ==================
-bot.on('message', async msg=>{
+bot.on('message', msg=>{
   const id=msg.chat.id;
   const username=msg.from.username;
-  const text=msg.text?.trim();
-  if(!msg.from.is_bot){
-    setTimeout(()=>bot.deleteMessage(id,msg.message_id).catch(()=>{}),3000);
-  }
-
-  if(banGuard(id)) return;
-
-  // Order step input
-  if(sessions[id]?.step==='amount'){
-    ensureUser(id, username);
-    const s = sessions[id];
-    const price = PRODUCTS[s.product].price;
-    let grams, cash;
-    if(text.startsWith('$')){ cash=parseFloat(text.slice(1)); grams=+(cash/price).toFixed(1); }
-    else{ grams=Math.round(parseFloat(text)*2)/2; cash=+(grams*price).toFixed(2); }
-    if(!grams||grams<2) return sendOrEdit(id,'❌ Minimum 2g');
-    s.grams = grams;
-    s.cash = cash;
-    return sendOrEdit(id,`${HEADER}\n🧾 *Order Summary*\n🌿 ${s.product}\n⚖️ ${grams}g\n💲 $${cash}`,{
-      parse_mode:'Markdown',
-      reply_markup:{
-        inline_keyboard:[
-          [{ text:'✅ Confirm', callback_data:'confirm_order' }],
-          [{ text:'🏠 Back to Menu', callback_data:'back_main' }]
-        ]
-      }
-    });
-  }
+  if(!sessions[id]||sessions[id].step!=='amount') return;
+  ensureUser(id,username);
+  const s=sessions[id];
+  const price=PRODUCTS[s.product].price;
+  const t=msg.text.trim();
+  let grams,cash;
+  if(t.startsWith('$')){ cash=parseFloat(t.slice(1)); grams=+(cash/price).toFixed(1); }
+  else{ grams=Math.round(parseFloat(t)*2)/2; cash=+(grams*price).toFixed(2); }
+  if(!grams||grams<2) return sendOrEdit(id,'❌ Minimum 2g');
+  s.grams=grams; s.cash=cash;
+  sendOrEdit(id,`${HEADER}\n🧾 *Order Summary*\n🌿 ${s.product}\n⚖️ ${grams}g\n💲 $${cash}`,{parse_mode:'Markdown', reply_markup:{inline_keyboard:[[ {text:'✅ Confirm',callback_data:'confirm_order'} ],[ {text:'🏠 Back to Menu',callback_data:'back_main'} ]] }});
 });
