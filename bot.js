@@ -1,4 +1,4 @@
-// === V1LE FARM BOT FULL FIXED ===
+// === V1LE FARM BOT FULL WORKING VERSION FOR TERMUX ===
 const TelegramBot = require('node-telegram-bot-api');
 
 // Load environment variables
@@ -7,22 +7,20 @@ const ADMIN_IDS = process.env.ADMIN_IDS
   ? process.env.ADMIN_IDS.split(',').map(Number)
   : [];
 
-if (!TOKEN || ADMIN_IDS.length === 0) {
-  console.error('❌ BOT_TOKEN or ADMIN_IDS not set!');
+if (!TOKEN) {
+  console.error('❌ BOT_TOKEN not set in environment!');
   process.exit(1);
 }
 
-// Fast polling
+// Polling bot
 const bot = new TelegramBot(TOKEN, { polling: { interval: 100, timeout: 10 } });
 
-// In-memory storage
+// In-memory user storage
 const users = new Map(); // userId -> { level, exp, orders }
-
-// XP system
 const XP_PER_MESSAGE = 1;
 const XP_TO_LEVEL_UP = 100;
 
-// Helpers
+// --- Helpers ---
 const deleteMessage = (chatId, messageId, delay = 2000) => {
   setTimeout(() => bot.deleteMessage(chatId, messageId).catch(() => {}), delay);
 };
@@ -33,7 +31,6 @@ const sendTempMessage = async (chatId, text, delay = 5000, parse_mode = 'HTML') 
   return msg;
 };
 
-// Leaderboard
 const getLeaderboard = () => {
   const arr = Array.from(users.entries())
     .sort((a, b) => b[1].level - a[1].level || b[1].exp - a[1].exp)
@@ -45,7 +42,6 @@ const getLeaderboard = () => {
   return text;
 };
 
-// ASCII menu
 const getRecipeMenu = () => `
 ╔═════════════════╗
 ║   V1LE FARM 🍀   ║
@@ -60,7 +56,8 @@ const getRecipeMenu = () => `
 ╚═════════════════╝
 `;
 
-// --- General messages: XP / leveling ---
+// --- Message Handlers ---
+// XP / leveling
 bot.on('message', (msg) => {
   const userId = msg.from.id;
   if (msg.from.is_bot) return;
@@ -77,17 +74,17 @@ bot.on('message', (msg) => {
 });
 
 // --- Commands ---
-
-// $<amount> order
+// $<amount> input
 bot.onText(/^\$(\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+
   if (!users.has(userId)) users.set(userId, { level: 1, exp: 0, orders: [] });
   const user = users.get(userId);
 
   const value = parseInt(match[1]);
   if (!value) {
-    await sendTempMessage(chatId, `❌ Invalid input. Enter a number after $`);
+    await sendTempMessage(chatId, '❌ Invalid input. Enter a number after $');
   } else {
     user.orders.push({ value, date: new Date() });
     await sendTempMessage(chatId, `✅ Order received: $${value}`);
@@ -98,22 +95,19 @@ bot.onText(/^\$(\d+)/, async (msg, match) => {
 
 // !leaderboard
 bot.onText(/!leaderboard/i, async (msg) => {
-  const chatId = msg.chat.id;
-  await sendTempMessage(chatId, getLeaderboard(), 10000);
-  deleteMessage(chatId, msg.message_id, 2000);
+  await sendTempMessage(msg.chat.id, getLeaderboard(), 10000);
+  deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
 // !menu
 bot.onText(/!menu/i, async (msg) => {
-  const chatId = msg.chat.id;
-  await sendTempMessage(chatId, getRecipeMenu(), 10000);
-  deleteMessage(chatId, msg.message_id, 2000);
+  await sendTempMessage(msg.chat.id, getRecipeMenu(), 10000);
+  deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
 // /broadcast <text>
 bot.onText(/\/broadcast (.+)/i, async (msg, match) => {
-  const userId = msg.from.id;
-  if (!ADMIN_IDS.includes(userId)) return;
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
   const text = match[1];
   for (const [uid] of users) {
     await sendTempMessage(uid, `📢 Admin broadcast:\n${text}`);
@@ -123,8 +117,7 @@ bot.onText(/\/broadcast (.+)/i, async (msg, match) => {
 
 // /clear_orders
 bot.onText(/\/clear_orders/i, async (msg) => {
-  const userId = msg.from.id;
-  if (!ADMIN_IDS.includes(userId)) return;
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
   users.forEach(u => (u.orders = []));
   for (const [uid] of users) {
     await sendTempMessage(uid, '🗑️ All orders cleared by admin');
@@ -132,8 +125,8 @@ bot.onText(/\/clear_orders/i, async (msg) => {
   deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
-// --- Error handling ---
+// --- Error Handling ---
 bot.on('polling_error', (err) => console.error('Polling error:', err));
 bot.on('error', (err) => console.error('Bot error:', err));
 
-console.log('✅ V1LE FARM BOT FULL FIXED is running...');
+console.log('✅ V1LE FARM BOT FULL WORKING VERSION is running...');
