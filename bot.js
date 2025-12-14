@@ -61,6 +61,8 @@ function banGuard(id){
   return false;
 }
 
+const COMMANDS_TEXT="📜 *Commands*\n/start – Main Menu\n/help – Commands";
+
 // ================= CONFIG =================
 const PRODUCTS={
   'God Complex':{price:10},
