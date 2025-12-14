@@ -1,5 +1,4 @@
-// === V1LE FARM BOT FULL VERSION ===
-// Mobile-optimized ASCII, fast response, XP, orders, leaderboard
+// === V1LE FARM BOT FULL WORKING VERSION ===
 const TelegramBot = require('node-telegram-bot-api');
 
 // Load environment variables
@@ -13,22 +12,21 @@ if (!TOKEN || ADMIN_IDS.length === 0) {
   process.exit(1);
 }
 
-// Fast polling for quick response
+// Fast polling
 const bot = new TelegramBot(TOKEN, { polling: { interval: 100, timeout: 10 } });
 
-// In-memory storage for users
+// In-memory storage
 const users = new Map(); // userId -> { level, exp, orders }
 
 // XP system
 const XP_PER_MESSAGE = 1;
 const XP_TO_LEVEL_UP = 100;
 
-// Helper to delete messages safely
+// Helpers
 const deleteMessage = (chatId, messageId, delay = 2000) => {
   setTimeout(() => bot.deleteMessage(chatId, messageId).catch(() => {}), delay);
 };
 
-// Helper to send bot messages and auto-delete
 const sendTempMessage = async (chatId, text, delay = 5000, parse_mode = 'HTML') => {
   const msg = await bot.sendMessage(chatId, text, { parse_mode });
   deleteMessage(chatId, msg.message_id, delay);
@@ -47,9 +45,8 @@ const getLeaderboard = () => {
   return text;
 };
 
-// Mobile-friendly ASCII recipe/order menu
-const getRecipeMenu = () => {
-  return `
+// Mobile-friendly ASCII menu
+const getRecipeMenu = () => `
 ╔═════════════════╗
 ║   V1LE FARM 🍀   ║
 ╠═════════════════╣
@@ -62,58 +59,64 @@ const getRecipeMenu = () => {
 ║ to place order! ║
 ╚═════════════════╝
 `;
-};
 
-// Handle all messages
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
+// --- Message handlers ---
+
+// General messages: XP leveling
+bot.on('message', (msg) => {
   const userId = msg.from.id;
-
-  // Ignore bots
   if (msg.from.is_bot) return;
 
-  // Initialize user data
-  if (!users.has(userId)) {
-    users.set(userId, { level: 1, exp: 0, orders: [] });
-  }
+  if (!users.has(userId)) users.set(userId, { level: 1, exp: 0, orders: [] });
   const user = users.get(userId);
 
-  // Add XP
   user.exp += XP_PER_MESSAGE;
   if (user.exp >= XP_TO_LEVEL_UP) {
     user.level += 1;
     user.exp = 0;
-    await sendTempMessage(chatId, `🎉 Congrats <b>${msg.from.first_name}</b>, you reached level ${user.level}!`);
+    sendTempMessage(msg.chat.id, `🎉 Congrats <b>${msg.from.first_name}</b>, you reached level ${user.level}!`);
   }
 
-  // Handle order input
-  if (msg.text && msg.text.startsWith('$')) {
-    const value = msg.text.slice(1).trim();
-    if (!value || isNaN(value)) {
-      await sendTempMessage(chatId, `❌ Invalid input. Enter a number after $`);
-    } else {
-      user.orders.push({ value: Number(value), date: new Date() });
-      await sendTempMessage(chatId, `✅ Order received: $${value}`);
-    }
+  deleteMessage(msg.chat.id, msg.message_id, 2000);
+});
+
+// --- Command handlers ---
+
+// $input orders
+bot.onText(/^\$(\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!users.has(userId)) users.set(userId, { level: 1, exp: 0, orders: [] });
+  const user = users.get(userId);
+
+  const value = parseInt(match[1]);
+  if (!value) {
+    await sendTempMessage(chatId, `❌ Invalid input. Enter a number after $`);
+  } else {
+    user.orders.push({ value, date: new Date() });
+    await sendTempMessage(chatId, `✅ Order received: $${value}`);
   }
 
-  // Show leaderboard command
-  if (msg.text && msg.text.toLowerCase() === '!leaderboard') {
-    const lb = getLeaderboard();
-    await sendTempMessage(chatId, lb, 10000); // show leaderboard for 10s
-  }
-
-  // Show recipe/menu command
-  if (msg.text && msg.text.toLowerCase() === '!menu') {
-    const menu = getRecipeMenu();
-    await sendTempMessage(chatId, menu, 10000);
-  }
-
-  // Delete user message after 2 seconds
   deleteMessage(chatId, msg.message_id, 2000);
 });
 
-// Admin broadcast
+// !leaderboard
+bot.onText(/!leaderboard/i, async (msg) => {
+  const chatId = msg.chat.id;
+  const lb = getLeaderboard();
+  await sendTempMessage(chatId, lb, 10000);
+  deleteMessage(chatId, msg.message_id, 2000);
+});
+
+// !menu
+bot.onText(/!menu/i, async (msg) => {
+  const chatId = msg.chat.id;
+  const menu = getRecipeMenu();
+  await sendTempMessage(chatId, menu, 10000);
+  deleteMessage(chatId, msg.message_id, 2000);
+});
+
+// Admin: /broadcast <text>
 bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   const userId = msg.from.id;
   if (!ADMIN_IDS.includes(userId)) return;
@@ -121,20 +124,22 @@ bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   for (const [uid] of users) {
     await sendTempMessage(uid, `📢 Admin broadcast:\n${text}`);
   }
+  deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
-// Admin clear all orders
+// Admin: /clear_orders
 bot.onText(/\/clear_orders/, async (msg) => {
   const userId = msg.from.id;
   if (!ADMIN_IDS.includes(userId)) return;
   users.forEach(u => (u.orders = []));
   for (const [uid] of users) {
-    await sendTempMessage(uid, '🗑️ All orders have been cleared by admin');
+    await sendTempMessage(uid, '🗑️ All orders cleared by admin');
   }
+  deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
-// Error handling
+// --- Error handling ---
 bot.on('polling_error', (err) => console.error('Polling error:', err));
 bot.on('error', (err) => console.error('Bot error:', err));
 
-console.log('✅ V1LE FARM BOT FULL VERSION is running...');
+console.log('✅ V1LE FARM BOT FULL WORKING VERSION is running...');
