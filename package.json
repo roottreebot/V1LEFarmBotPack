@@ -1,14 +1,17 @@
 {
-  "name": "v1lefarmbot",
+  "name": "v1le-farm-bot",
   "version": "1.0.0",
-  "description": "V1LEFarm Telegram Bot",
+  "description": "Telegram bot for V1LE FARM with orders, XP system, and admin suite",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0",
-    "dotenv": "^16.3.1",
-    "json2csv": "^6.0.0"
-  }
+    "node-telegram-bot-api": "^0.61.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "V1LE FARM",
+  "license": "MIT"
 }
