@@ -67,7 +67,7 @@ const PRODUCTS={
   'Killer Green Budz':{price:10}
 };
 
-const COMMANDS_TEXT="📜 *Commands*\n/start – Main Menu\n/profile – Profile & Orders\n/help – Commands";
+const COMMANDS_TEXT="📜 *Commands*\n/start – Main Menu\n/help – Commands";
 
 // ================= XP =================
 function addXP(id,xp){
