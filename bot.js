@@ -86,32 +86,23 @@ function xpBar(xp,lvl){
 
 // ================= ASCII =================
 const ASCII_MAIN=`
-██████╗ ██╗   ██╗██╗     ███████╗
-██╔══██╗██║   ██║██║     ██╔════╝
-██████╔╝██║   ██║██║     █████╗
-██╔═══╝ ██║   ██║██║     ██╔══╝
-██║     ╚██████╔╝███████╗███████╗
-╚═╝      ╚═════╝ ╚══════╝╚══════╝
+╔══════════════╗
+║  V1LE FARM   
+╚══════════════╝
 V1LE FARM
 `;
 
 const ASCII_PROFILE=`
-██████╗ ██████╗ ██████╗ ██████╗
-██╔══██╗██╔══██╗██╔══██╗██╔══██╗
-██████╔╝██████╔╝██║  ██║██████╔╝
-██╔═══╝ ██╔═══╝ ██║  ██║██╔═══╝
-██║     ██║     ██████╔╝██║
-╚═╝     ╚═╝     ╚═════╝ ╚═╝
+╔════════════════╗
+║   YOUR ORDER   
+╚════════════════╝
 PROFILE
 `;
 
 const ASCII_LEADERBOARD=`
-██╗     ███████╗ █████╗ ██████╗ ██████╗ 
-██║     ██╔════╝██╔══██╗██╔══██╗██╔══██╗
-██║     █████╗  ███████║██████╔╝██████╔╝
-██║     ██╔══╝  ██╔══██║██╔═══╝ ██╔═══╝ 
-███████╗███████╗██║  ██║██║     ██║     
-╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝     
+╔════════════════╗
+║  TOP FARMERS   
+╚════════════════╝
 LEADERBOARD
 `;
 
@@ -246,14 +237,14 @@ bot.on('callback_query',async q=>{
     if(!s.adminMsgIds) s.adminMsgIds=[];
     for(const adminId of ADMIN_IDS){
       const sentMsg=await bot.sendMessage(adminId,
-`████████████████████████████████
-█       NEW ORDER RECEIVED        █
-█ User: @${username||id}
-█ Product: ${order.product}
-█ Grams: ${order.grams}g
-█ Price: $${order.cash}
-█ Status: ⚪ Pending
-████████████████████████████████`,
+`
+       NEW ORDER RECEIVED        
+ User: @${username||id}
+ Product: ${order.product}
+ Grams: ${order.grams}g
+ Price: $${order.cash}
+ Status: ⚪ Pending
+`,
       {parse_mode:'Markdown',
        reply_markup:{inline_keyboard:[[{text:'✅ Accept',callback_data:`admin_accept_${id}_${users[id].orders.length-1}`},{text:'❌ Reject',callback_data:`admin_reject_${id}_${users[id].orders.length-1}`}]]}});
       s.adminMsgIds.push({adminId,msgId:sentMsg.message_id,orderIndex:users[id].orders.length-1});
