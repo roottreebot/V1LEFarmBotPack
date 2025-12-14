@@ -1,12 +1,12 @@
-// === V1LE FARM BOT — FINAL + PRESTIGE SYSTEM ===
+// === V1LE FARM BOT — FINAL FIXED VERSION ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
 const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(Number) || [];
 
-if (!TOKEN || !ADMIN_IDS.length) {
-  console.error('❌ BOT_TOKEN or ADMIN_IDS missing');
+if (!TOKEN) {
+  console.error('❌ BOT_TOKEN missing');
   process.exit(1);
 }
 
@@ -15,99 +15,69 @@ console.log('✅ Bot running');
 
 // ================= DATABASE =================
 const DB_FILE = 'users.json';
-const META_FILE = 'meta.json';
-
 let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
-let meta = fs.existsSync(META_FILE) ? JSON.parse(fs.readFileSync(META_FILE)) : { weeklyReset: Date.now() };
 
 function ensureUser(id, username) {
-  if (!users[id]) users[id] = {
-    xp: 0,
-    weeklyXp: 0,
-    level: 1,
-    prestige: 0,
-    orders: [],
-    banned: false,
-    username: username || ''
-  };
+  if (!users[id]) {
+    users[id] = {
+      level: 1,
+      xp: 0,
+      weeklyXp: 0,
+      prestige: 0,
+      orders: [],
+      username: username || ''
+    };
+  }
   if (username) users[id].username = username;
 }
 
-// ================= SAVE =================
-let saveTimer;
 function saveAll() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
-    fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
-  }, 200);
+  fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
 }
 
-// ================= PRESTIGE CONFIG =================
+// ================= PRESTIGE =================
 const PRESTIGE_LEVEL = 20;
-const PRESTIGE_XP_CAP = 0.5; // 50% max bonus
-
-function prestigeMultiplier(p) {
-  return Math.min(p * 0.10, PRESTIGE_XP_CAP);
+function prestigeBonus(p) {
+  return Math.min(p * 0.1, 0.5);
 }
 
-function prestigeBadge(p) {
-  return p === 0 ? '' : `🏆 P${p}`;
+// ================= XP =================
+function xpNeeded(lvl) {
+  return Math.floor(20 + lvl * 8);
 }
 
-// ================= XP SYSTEM =================
-function xpNeeded(level) {
-  return Math.floor(15 + level * 7 + Math.pow(level, 1.4));
-}
+function addXP(id, amount) {
+  const u = users[id];
+  const bonus = 1 + prestigeBonus(u.prestige);
+  const gained = Math.floor(amount * bonus);
 
-function applyXP(id, xp) {
-  ensureUser(id);
+  u.xp += gained;
+  u.weeklyXp += gained;
 
-  const prestigeBonus = 1 + prestigeMultiplier(users[id].prestige);
-  const totalXP = Math.floor(xp * prestigeBonus);
-
-  users[id].xp += totalXP;
-  users[id].weeklyXp += totalXP;
-
-  while (users[id].xp >= xpNeeded(users[id].level)) {
-    users[id].xp -= xpNeeded(users[id].level);
-    users[id].level++;
+  while (u.xp >= xpNeeded(u.level)) {
+    u.xp -= xpNeeded(u.level);
+    u.level++;
   }
 
   saveAll();
-  return totalXP;
+  return gained;
 }
 
-// ORDER XP
 function addOrderXP(id, cash) {
-  const baseXP = 5;
-  const cashXP = cash * 0.6;
-  const bonusXP = cash >= 50 ? 15 : cash >= 20 ? 7 : 0;
-  const levelBoost = 1 + users[id].level * 0.03;
-
-  return applyXP(id, (baseXP + cashXP + bonusXP) * levelBoost);
-}
-
-// CHAT XP
-const CHAT_XP = 1;
-const CHAT_CD = 5000;
-const chatCD = {};
-
-function addChatXP(id) {
-  const now = Date.now();
-  if (chatCD[id] && now - chatCD[id] < CHAT_CD) return;
-  chatCD[id] = now;
-  applyXP(id, CHAT_XP);
+  const base = 5;
+  const scaled = cash * 0.6;
+  const bonus = cash >= 50 ? 15 : cash >= 20 ? 7 : 0;
+  return addXP(id, base + scaled + bonus);
 }
 
 function xpBar(xp, lvl) {
   const max = xpNeeded(lvl);
-  const filled = Math.floor((xp / max) * 10);
-  return '🟩'.repeat(filled) + '⬜'.repeat(10 - filled) + ` ${xp}/${max}`;
+  const fill = Math.floor((xp / max) * 10);
+  return '🟩'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
 }
 
 // ================= ASCII =================
-const ASCII_MAIN = `
+const ASCII = `
 ╔════════════╗
 ║  ROOTTREE  ║
 ╚════════════╝
@@ -122,47 +92,40 @@ const PRODUCTS = {
 
 const sessions = {};
 
-// ================= DELETE + CHAT XP =================
-bot.on('message', msg => {
-  if (!msg.from || msg.from.is_bot) return;
-  const id = msg.chat.id;
-  ensureUser(id, msg.from.username);
-
-  addChatXP(id);
-
-  setTimeout(() => {
-    bot.deleteMessage(id, msg.message_id).catch(() => {});
-  }, 2000);
-});
-
 // ================= MENU =================
 async function showMenu(id) {
   const u = users[id];
 
-  const buttons = Object.keys(PRODUCTS).map(p => [
+  const kb = Object.keys(PRODUCTS).map(p => [
     { text: `🌿 ${p}`, callback_data: `product_${p}` }
   ]);
 
   await bot.sendMessage(id,
-`${ASCII_MAIN}
-🎚 Level: ${u.level} ${prestigeBadge(u.prestige)}
+`${ASCII}
+🎚 Level: ${u.level} ${u.prestige ? `🏆 P${u.prestige}` : ''}
 📊 XP: ${xpBar(u.xp, u.level)}
-🔥 Prestige Bonus: +${Math.floor(prestigeMultiplier(u.prestige) * 100)}%
+🔥 Prestige Bonus: +${Math.floor(prestigeBonus(u.prestige) * 100)}%
 
-🛒 Choose product 👇`,
+🛒 Select product 👇`,
 {
-  parse_mode: 'Markdown',
-  reply_markup: { inline_keyboard: buttons }
+  reply_markup: { inline_keyboard: kb }
 });
 }
 
 // ================= COMMANDS =================
-bot.onText(/\/start|\/menu|\/help/i, msg => {
-  showMenu(msg.chat.id);
+bot.onText(/^\/start$/, msg => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+  showMenu(id);
 });
 
-bot.onText(/\/prestige/i, msg => {
+bot.onText(/^\/help$/, msg => {
+  bot.sendMessage(msg.chat.id, 'Use /start to open the menu\nUse /prestige at level 20');
+});
+
+bot.onText(/^\/prestige$/, msg => {
   const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
   const u = users[id];
 
   if (u.level < PRESTIGE_LEVEL) {
@@ -173,53 +136,61 @@ bot.onText(/\/prestige/i, msg => {
   u.level = 1;
   u.xp = 0;
   u.weeklyXp = 0;
-
   saveAll();
 
   bot.sendMessage(id,
-`🏆 *PRESTIGE UNLOCKED!*
-You are now *Prestige ${u.prestige}*
-
-🔥 Permanent XP Bonus: +${Math.floor(prestigeMultiplier(u.prestige) * 100)}%`,
+`🏆 *PRESTIGE ACHIEVED*
+You are now Prestige ${u.prestige}
+🔥 XP Bonus: +${Math.floor(prestigeBonus(u.prestige) * 100)}%`,
 { parse_mode: 'Markdown' });
 
   showMenu(id);
 });
 
 // ================= CALLBACKS =================
-bot.on('callback_query', async q => {
+bot.on('callback_query', q => {
   const id = q.message.chat.id;
   const data = q.data;
+  ensureUser(id, q.from.username);
 
   if (data.startsWith('product_')) {
     const product = data.replace('product_', '');
-    sessions[id] = { product, step: 'amount' };
+    sessions[id] = { step: 'amount', product };
     return bot.sendMessage(id, `✏️ Enter grams or $ amount for *${product}*`, { parse_mode: 'Markdown' });
   }
 
   if (data === 'confirm_order') {
     const s = sessions[id];
     users[id].orders.push({ ...s, time: Date.now() });
-    const xp = addOrderXP(id, s.cash);
+
+    const earned = addOrderXP(id, s.cash);
 
     bot.sendMessage(id,
 `🧾 *Order Confirmed*
 🌿 ${s.product}
 ⚖️ ${s.grams}g
 💲 $${s.cash}
-
-⭐ XP Earned: *${xp}*`,
+⭐ XP Earned: ${earned}`,
 { parse_mode: 'Markdown' });
 
     showMenu(id);
   }
 });
 
-// ================= ORDER INPUT =================
+// ================= MESSAGE HANDLER (ONE ONLY) =================
 bot.on('message', msg => {
+  if (!msg.text || msg.text.startsWith('/')) return;
+
   const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+
   const s = sessions[id];
-  if (!s || s.step !== 'amount') return;
+  if (!s || s.step !== 'amount') {
+    setTimeout(() => {
+      bot.deleteMessage(id, msg.message_id).catch(() => {});
+    }, 2000);
+    return;
+  }
 
   const price = PRODUCTS[s.product].price;
   let grams, cash;
@@ -247,4 +218,9 @@ bot.on('message', msg => {
   reply_markup: {
     inline_keyboard: [[{ text: '✅ Confirm', callback_data: 'confirm_order' }]]
   }
+});
+
+  setTimeout(() => {
+    bot.deleteMessage(id, msg.message_id).catch(() => {});
+  }, 2000);
 });
