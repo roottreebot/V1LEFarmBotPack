@@ -1,4 +1,4 @@
-// === V1LE FARM BOT FULL WORKING VERSION ===
+// === V1LE FARM BOT FULL FIXED ===
 const TelegramBot = require('node-telegram-bot-api');
 
 // Load environment variables
@@ -45,24 +45,22 @@ const getLeaderboard = () => {
   return text;
 };
 
-// Mobile-friendly ASCII menu
+// ASCII menu
 const getRecipeMenu = () => `
 ╔═════════════════╗
 ║   V1LE FARM 🍀   ║
 ╠═════════════════╣
 ║ $1   -> Item A  ║
 ║ $5   -> Item B  ║
-║ $10  -> Item C  ║
-║ $50  -> Item D  ║
+║ $10  -> Item C ║
+║ $50  -> Item D ║
 ╠═════════════════╣
 ║ Use $<amount>   ║
 ║ to place order! ║
 ╚═════════════════╝
 `;
 
-// --- Message handlers ---
-
-// General messages: XP leveling
+// --- General messages: XP / leveling ---
 bot.on('message', (msg) => {
   const userId = msg.from.id;
   if (msg.from.is_bot) return;
@@ -76,13 +74,11 @@ bot.on('message', (msg) => {
     user.exp = 0;
     sendTempMessage(msg.chat.id, `🎉 Congrats <b>${msg.from.first_name}</b>, you reached level ${user.level}!`);
   }
-
-  deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
-// --- Command handlers ---
+// --- Commands ---
 
-// $input orders
+// $<amount> order
 bot.onText(/^\$(\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -103,21 +99,19 @@ bot.onText(/^\$(\d+)/, async (msg, match) => {
 // !leaderboard
 bot.onText(/!leaderboard/i, async (msg) => {
   const chatId = msg.chat.id;
-  const lb = getLeaderboard();
-  await sendTempMessage(chatId, lb, 10000);
+  await sendTempMessage(chatId, getLeaderboard(), 10000);
   deleteMessage(chatId, msg.message_id, 2000);
 });
 
 // !menu
 bot.onText(/!menu/i, async (msg) => {
   const chatId = msg.chat.id;
-  const menu = getRecipeMenu();
-  await sendTempMessage(chatId, menu, 10000);
+  await sendTempMessage(chatId, getRecipeMenu(), 10000);
   deleteMessage(chatId, msg.message_id, 2000);
 });
 
-// Admin: /broadcast <text>
-bot.onText(/\/broadcast (.+)/, async (msg, match) => {
+// /broadcast <text>
+bot.onText(/\/broadcast (.+)/i, async (msg, match) => {
   const userId = msg.from.id;
   if (!ADMIN_IDS.includes(userId)) return;
   const text = match[1];
@@ -127,8 +121,8 @@ bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   deleteMessage(msg.chat.id, msg.message_id, 2000);
 });
 
-// Admin: /clear_orders
-bot.onText(/\/clear_orders/, async (msg) => {
+// /clear_orders
+bot.onText(/\/clear_orders/i, async (msg) => {
   const userId = msg.from.id;
   if (!ADMIN_IDS.includes(userId)) return;
   users.forEach(u => (u.orders = []));
@@ -142,4 +136,4 @@ bot.onText(/\/clear_orders/, async (msg) => {
 bot.on('polling_error', (err) => console.error('Polling error:', err));
 bot.on('error', (err) => console.error('Bot error:', err));
 
-console.log('✅ V1LE FARM BOT FULL WORKING VERSION is running...');
+console.log('✅ V1LE FARM BOT FULL FIXED is running...');
