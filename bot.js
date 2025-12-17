@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FULL FINAL VERSION) ===
+// === V1LE FARM BOT (FULL FINAL FIXED VERSION) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -99,6 +99,7 @@ LEADERBOARD
 
 // ================= SESSIONS =================
 const sessions = {};
+
 async function sendOrEdit(id, text, opt = {}) {
   if (!sessions[id]) sessions[id] = {};
   const msgId = sessions[id].mainMsgId;
@@ -124,7 +125,6 @@ async function sendOrEdit(id, text, opt = {}) {
 function cleanupOrders(id) {
   const u = users[id];
   if (!u) return;
-
   u.orders = u.orders.filter(o => o.status !== '❌ Rejected');
   if (u.orders.length > 10) u.orders = u.orders.slice(-10);
 }
@@ -189,6 +189,8 @@ bot.on('callback_query', async q => {
   ensureUser(id, q.from.username);
 
   const s = sessions[id] || (sessions[id] = {});
+
+  if (q.data === 'back_main') return showMainMenu(id);
 
   if (q.data.startsWith('product_')) {
     s.product = q.data.replace('product_', '');
@@ -266,10 +268,17 @@ bot.on('message', msg => {
   const id = msg.chat.id;
   ensureUser(id, msg.from.username);
 
-  // Auto recreate menu if deleted
-  if (!sessions[id]?.mainMsgId) {
-    showMainMenu(id);
+  // delete user messages after 2s
+  if (!msg.from.is_bot) {
+    setTimeout(() => {
+      bot.deleteMessage(id, msg.message_id).catch(() => {});
+    }, 2000);
   }
+
+  // prevent duplicate menu on /start
+  if (msg.text?.startsWith('/')) return;
+
+  if (!sessions[id]?.mainMsgId) showMainMenu(id);
 
   addChatXP(id);
 
@@ -302,9 +311,10 @@ bot.on('message', msg => {
 {
   parse_mode: 'Markdown',
   reply_markup: {
-    inline_keyboard: [[
-      { text: '✅ Confirm', callback_data: 'confirm_order' }
-    ]]
+    inline_keyboard: [
+      [{ text: '✅ Confirm', callback_data: 'confirm_order' }],
+      [{ text: '🏠 Back to Menu', callback_data: 'back_main' }]
+    ]
   }
 });
 });
