@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL WITH RELOAD MENU BUTTON) ===
+// === V1LE FARM BOT (FINAL: SINGLE MAIN MENU + RELOAD BUTTON) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -82,6 +82,16 @@ const ASCII_LB = `╔════════════╗
 const sessions = {};
 async function sendOrEdit(id, text, opt = {}) {
   if (!sessions[id]) sessions[id] = {};
+
+  // Delete extra messages if more than 1 exists
+  if (sessions[id].mainMsgIdArr && sessions[id].mainMsgIdArr.length > 1) {
+    const toDelete = sessions[id].mainMsgIdArr.slice(0, -1);
+    for (const mid of toDelete) {
+      bot.deleteMessage(id, mid).catch(() => {});
+    }
+    sessions[id].mainMsgIdArr = sessions[id].mainMsgIdArr.slice(-1);
+  }
+
   const mid = sessions[id].mainMsgId;
 
   if (mid) {
@@ -93,12 +103,27 @@ async function sendOrEdit(id, text, opt = {}) {
       });
       return;
     } catch {
-      sessions[id].mainMsgId = null;
+      // Failed to edit, treat as new message
     }
   }
 
+  // Send new message if edit failed or no previous
   const m = await bot.sendMessage(id, text, opt);
+
   sessions[id].mainMsgId = m.message_id;
+
+  // Track all main menu IDs for deletion check
+  if (!sessions[id].mainMsgIdArr) sessions[id].mainMsgIdArr = [];
+  sessions[id].mainMsgIdArr.push(m.message_id);
+
+  // Delete extra if >1
+  if (sessions[id].mainMsgIdArr.length > 1) {
+    const toDelete = sessions[id].mainMsgIdArr.slice(0, -1);
+    for (const midDel of toDelete) {
+      bot.deleteMessage(id, midDel).catch(() => {});
+    }
+    sessions[id].mainMsgIdArr = sessions[id].mainMsgIdArr.slice(-1);
+  }
 }
 
 // ================= CLEANUP =================
