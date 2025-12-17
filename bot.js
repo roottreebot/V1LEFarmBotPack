@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL WITH ORDER XP PROGRESS BAR) ===
+// === V1LE FARM BOT (FINAL WITH RELOAD MENU BUTTON) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -179,6 +179,9 @@ async function showMainMenu(id, lbPage = 0) {
     kb.push([storeBtn]);
   }
 
+  // Reload menu button for all users
+  kb.push([{ text: '🔄 Reload Menu', callback_data: 'reload_menu' }]);
+
   const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
 
   await sendOrEdit(
@@ -218,6 +221,9 @@ bot.on('callback_query', async q => {
     saveAll();
     return showMainMenu(id);
   }
+
+  // Reload menu button
+  if (q.data === 'reload_menu') return showMainMenu(id, 0);
 
   if (q.data.startsWith('lb_')) {
     const page = Math.max(0, Number(q.data.split('_')[1]));
@@ -288,7 +294,6 @@ Status: ⚪ Pending`,
 
     order.status = action === 'accept' ? '✅ Accepted' : '❌ Rejected';
 
-    // Send message to user with auto-delete after 5s
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
@@ -337,7 +342,7 @@ bot.on('message', msg => {
   const text = msg.text?.trim();
   if (!text) return;
 
-  // ============ ADMIN COMMANDS ============
+  // Admin commands: /ban /unban
   if (ADMIN_IDS.includes(id)) {
     if (text.startsWith('/ban') || text.startsWith('/unban')) {
       const target = text.split(' ')[1];
@@ -360,7 +365,7 @@ bot.on('message', msg => {
     }
   }
 
-  // ============ ORDER INPUT ============
+  // Order input
   const s = sessions[id];
   if (!s || s.step !== 'amount') return;
 
