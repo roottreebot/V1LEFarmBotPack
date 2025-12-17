@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FULL FINAL WITH WEEKLY RESET) ===
+// === V1LE FARM BOT (FULL FINAL WITH WEEKLY RESET & BAN CONFIRM) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -324,7 +324,9 @@ bot.on('message', msg => {
 
       users[uid].banned = text.startsWith('/ban');
       saveAll();
-      return bot.sendMessage(id, `${text.startsWith('/ban') ? '🔨 Banned' : '✅ Unbanned'} user ${uid}`);
+
+      const actionText = users[uid].banned ? '🔨 Banned' : '✅ Unbanned';
+      return bot.sendMessage(id, `${actionText} user [${users[uid].username || uid}](tg://user?id=${uid})`, { parse_mode: 'Markdown' });
     }
   }
 
