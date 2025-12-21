@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FULL FINAL VERSION – SINGLE MAIN MENU + TEMP ORDER SUMMARY) ===
+// === V1LE FARM BOT (FINAL – SINGLE MAIN MENU, TEMP ORDER SUMMARY, STORE CHECK) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -150,7 +150,7 @@ ${lb.text}`;
     } catch {}
   }
 
-  // Send new main menu
+  // Send new main menu if it doesn't exist
   const msg = await bot.sendMessage(id, menuText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } });
   if (!sessions[id]) sessions[id] = {};
   sessions[id].mainMenuId = msg.message_id;
@@ -172,7 +172,9 @@ bot.on('callback_query', async q => {
   if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id); }
 
   if (q.data.startsWith('product_')) {
-    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store closed', show_alert: true });
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Cannot order.', show_alert: true });
+    const u = users[id];
+    if (Date.now() - u.lastOrderAt < 5 * 60000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true });
     sessions[id] = { product: q.data.replace('product_', ''), step: 'amount', msgIds: [], locked: false };
     return bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`).then(m => sessions[id].msgIds.push(m.message_id));
   }
@@ -199,7 +201,6 @@ bot.on('callback_query', async q => {
     u.orders = u.orders.slice(-10);
     saveAll();
 
-    // Notify admins
     for (const admin of ADMIN_IDS) {
       const m = await bot.sendMessage(
         admin,
@@ -212,7 +213,6 @@ bot.on('callback_query', async q => {
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
-    // Delete order summary messages
     if (s.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
     delete sessions[id].product;
     delete sessions[id].grams;
@@ -221,7 +221,6 @@ bot.on('callback_query', async q => {
     delete sessions[id].locked;
     delete sessions[id].msgIds;
 
-    // Refresh main menu
     return showMainMenu(id);
   }
 
@@ -264,7 +263,7 @@ bot.on('message', msg => {
 
   s.grams = grams; s.cash = cash;
 
-  // Delete old summary messages
+  // Delete previous summary messages
   if (s.msgIds && s.msgIds.length) {
     s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
     s.msgIds = [];
