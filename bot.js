@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FIXED MAIN MENU & ORDER SUMMARY) ===
+// === V1LE FARM BOT (FULL FIXED VERSION – MAIN MENU & ORDER SUMMARY) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -170,7 +170,6 @@ bot.on('callback_query', async q => {
   const id = q.message.chat.id;
   ensureUser(id, q.from.username);
   await bot.answerCallbackQuery(q.id).catch(() => {});
-
   const s = sessions[id];
 
   if (q.data === 'reload') return showMainMenu(id);
@@ -189,13 +188,35 @@ bot.on('callback_query', async q => {
     s.locked = true;
     const u = users[id];
     u.lastOrderAt = Date.now();
-    const order = { product: s.product, grams: s.grams, cash: s.cash, status: '⏳ Pending', createdAt: Date.now(), pendingXP: Math.floor(2 + s.cash * 0.5), adminMsgs: [] };
-    u.orders.push(order); u.orders = u.orders.slice(-10); saveAll();
 
+    if (!s.product || !s.grams || !s.cash) return bot.sendMessage(id, '❌ Order info missing');
+
+    const order = {
+      product: s.product,
+      grams: s.grams,
+      cash: s.cash,
+      status: '⏳ Pending',
+      createdAt: Date.now(),
+      pendingXP: Math.floor(2 + s.cash * 0.5),
+      adminMsgs: []
+    };
+
+    u.orders.push(order);
+    u.orders = u.orders.slice(-10);
+    saveAll();
+
+    // Notify admins
     for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(admin, `🧾 NEW ORDER\n@${u.username || id}\n${order.product} — ${order.grams}g — $${order.cash}`, {
-        reply_markup: { inline_keyboard: [[{ text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` }, { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }]] }
-      });
+      const m = await bot.sendMessage(
+        admin,
+        `🧾 NEW ORDER\n@${u.username || id}\n${order.product} — ${order.grams}g — $${order.cash}`,
+        {
+          reply_markup: { inline_keyboard: [[
+            { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
+            { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
+          ]] }
+        }
+      );
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
@@ -203,13 +224,20 @@ bot.on('callback_query', async q => {
   }
 
   if (q.data.startsWith('admin_')) {
-    const [, action, uid, index] = q.data.split('_'); const userId = Number(uid);
+    const [, action, uid, index] = q.data.split('_'); 
+    const userId = Number(uid);
     const order = users[userId]?.orders[index];
     if (!order || order.status !== '⏳ Pending') return;
 
     order.status = action === 'accept' ? '🟢 Accepted' : '❌ Rejected';
-    if (action === 'accept') { giveXP(userId, order.pendingXP); delete order.pendingXP; bot.sendMessage(userId, '✅ Your order accepted!').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000)); }
-    else { bot.sendMessage(userId, '❌ Your order rejected').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000)); users[userId].orders = users[userId].orders.filter(o => o !== order); }
+    if (action === 'accept') { 
+      giveXP(userId, order.pendingXP); 
+      delete order.pendingXP;
+      bot.sendMessage(userId, '✅ Your order accepted!').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000)); 
+    } else { 
+      bot.sendMessage(userId, '❌ Your order rejected').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000)); 
+      users[userId].orders = users[userId].orders.filter(o => o !== order); 
+    }
 
     for (const { admin, msgId } of order.adminMsgs) bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: admin, message_id: msgId }).catch(() => {});
     saveAll();
