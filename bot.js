@@ -1,15 +1,13 @@
-// === V1LE FARM BOT (FINAL – HARDENED + FULL FEATURES) ===
+// === V1LE FARM BOT (FINAL – FIXED & STABLE) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
 // ================= ENV =================
 const TOKEN = process.env.BOT_TOKEN;
-const ADMIN_IDS = process.env.ADMIN_IDS
-  ? process.env.ADMIN_IDS.split(',').map(Number)
-  : [];
+const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(Number) || [];
 
 if (!TOKEN || !ADMIN_IDS.length) {
-  console.error('❌ BOT_TOKEN or ADMIN_IDS missing');
+  console.error('❌ Missing BOT_TOKEN or ADMIN_IDS');
   process.exit(1);
 }
 
@@ -30,10 +28,7 @@ function load(file, def) {
 }
 
 let users = load(DB_FILE, {});
-let meta = load(META_FILE, {
-  weeklyReset: Date.now(),
-  storeOpen: true
-});
+let meta = load(META_FILE, { weeklyReset: Date.now(), storeOpen: true });
 
 function saveAll() {
   safeSave(DB_FILE, users);
@@ -41,15 +36,8 @@ function saveAll() {
 }
 
 // ================= SHUTDOWN =================
-process.on('SIGINT', () => {
-  console.log('🛑 Saving before shutdown...');
-  saveAll();
-  process.exit();
-});
-process.on('SIGTERM', () => {
-  saveAll();
-  process.exit();
-});
+process.on('SIGINT', () => { saveAll(); process.exit(); });
+process.on('SIGTERM', () => { saveAll(); process.exit(); });
 
 // ================= USERS =================
 function ensureUser(id, username) {
@@ -72,10 +60,8 @@ function ensureUser(id, username) {
 function giveXP(id, xp) {
   const u = users[id];
   if (!u || u.banned) return;
-
   u.xp += xp;
   u.weeklyXp += xp;
-
   while (u.xp >= u.level * 5) {
     u.xp -= u.level * 5;
     u.level++;
@@ -90,11 +76,11 @@ function xpBar(xp, lvl) {
 
 // ================= TIME =================
 function timeAgo(ts) {
-  const sec = Math.floor((Date.now() - ts) / 1000);
-  if (sec < 60) return `${sec}s ago`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-  return `${Math.floor(sec / 86400)}d ago`;
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
 // ================= PRODUCTS =================
@@ -115,30 +101,33 @@ const ASCII_LB = `╔════════════╗
 // ================= SESSIONS =================
 const sessions = {};
 
+// ================= SEND OR EDIT (FIXED) =================
 async function sendOrEdit(id, text, opt = {}) {
   if (!sessions[id]) sessions[id] = {};
-  const mid = sessions[id].mainMsgId;
+  const s = sessions[id];
 
-  try {
-    if (mid) {
-      await bot.editMessageText(text, { chat_id: id, message_id: mid, ...opt });
-      return;
+  // Delete old menus
+  if (s.menuIds?.length > 1) {
+    for (const mid of s.menuIds.slice(0, -1)) {
+      bot.deleteMessage(id, mid).catch(() => {});
     }
-  } catch {}
+    s.menuIds = s.menuIds.slice(-1);
+  }
+
+  if (s.menuIds?.length === 1) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: id,
+        message_id: s.menuIds[0],
+        ...opt
+      });
+      return;
+    } catch {}
+  }
 
   const m = await bot.sendMessage(id, text, opt);
-  sessions[id].mainMsgId = m.message_id;
+  s.menuIds = (s.menuIds || []).concat(m.message_id);
 }
-
-// ================= WEEKLY RESET =================
-setInterval(() => {
-  if (Date.now() - meta.weeklyReset >= 7 * 86400000) {
-    Object.values(users).forEach(u => (u.weeklyXp = 0));
-    meta.weeklyReset = Date.now();
-    saveAll();
-    console.log('✅ Weekly XP reset');
-  }
-}, 3600000);
 
 // ================= LEADERBOARD =================
 function getLeaderboard(page = 0) {
@@ -178,7 +167,7 @@ async function showMainMenu(id, page = 0) {
   const kb = [
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
     ...lb.buttons,
-    [{ text: '🔄 Reload Menu', callback_data: 'reload_menu' }]
+    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
   if (ADMIN_IDS.includes(id)) {
@@ -203,25 +192,31 @@ ${lb.text}`,
 // ================= START =================
 bot.onText(/\/start|\/help/, m => showMainMenu(m.chat.id));
 
-// ================= CALLBACKS =================
+// ================= CALLBACKS (SINGLE HANDLER – FIXED) =================
 bot.on('callback_query', async q => {
   const id = q.message.chat.id;
   ensureUser(id, q.from.username);
   const s = sessions[id] ||= {};
+  await bot.answerCallbackQuery(q.id).catch(() => {});
 
-  if (q.data === 'reload_menu') return showMainMenu(id);
+  if (q.data === 'reload') return showMainMenu(id);
 
-  if (q.data.startsWith('lb_')) {
+  if (q.data.startsWith('lb_'))
     return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
+
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = true; saveAll();
+    return showMainMenu(id);
+  }
+
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = false; saveAll();
+    return showMainMenu(id);
   }
 
   if (q.data.startsWith('product_')) {
-    const u = users[id];
     if (!meta.storeOpen)
       return bot.answerCallbackQuery(q.id, { text: 'Store closed', show_alert: true });
-
-    if (Date.now() - u.lastOrderAt < 5 * 60000)
-      return bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true });
 
     s.product = q.data.replace('product_', '');
     s.step = 'amount';
@@ -229,23 +224,19 @@ bot.on('callback_query', async q => {
     return sendOrEdit(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`);
   }
 
-  if (q.data === 'confirm_order') {
+  if (q.data === 'confirm') {
     if (s.locked) return;
     s.locked = true;
 
     const u = users[id];
-    u.lastOrderAt = Date.now();
-
     const order = {
       product: s.product,
       grams: s.grams,
       cash: s.cash,
       status: '⏳ Pending',
       createdAt: Date.now(),
-      updatedAt: null,
       pendingXP: Math.floor(2 + s.cash * 0.5),
-      adminMsgs: [],
-      adminNote: ''
+      adminMsgs: []
     };
 
     u.orders.push(order);
@@ -253,53 +244,44 @@ bot.on('callback_query', async q => {
     saveAll();
 
     for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(admin,
-`🧾 NEW ORDER
-@${u.username || id}
-${order.product} — ${order.grams}g — $${order.cash}`,
-{
-  reply_markup: {
-    inline_keyboard: [[
-      { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
-      { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
-    ]]
-  }
-});
+      const m = await bot.sendMessage(
+        admin,
+        `🧾 NEW ORDER\n@${u.username || id}\n${order.product} — ${order.grams}g — $${order.cash}`,
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
+              { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
+            ]]
+          }
+        }
+      );
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
     delete sessions[id];
     saveAll();
-    showMainMenu(id);
-  }
-});
-
-// ================= ADMIN DECISIONS =================
-bot.on('callback_query', async q => {
-  if (!q.data.startsWith('admin_')) return;
-
-  const [, action, uid, index] = q.data.split('_');
-  const userId = Number(uid);
-  const order = users[userId]?.orders[index];
-  if (!order || order.status !== '⏳ Pending') return;
-
-  order.status = action === 'accept' ? '🟢 Accepted' : '❌ Rejected';
-  order.updatedAt = Date.now();
-
-  if (action === 'accept') {
-    giveXP(userId, order.pendingXP);
-    users[userId].rejectedStreak = 0;
-  } else {
-    users[userId].rejectedStreak++;
+    return showMainMenu(id);
   }
 
-  for (const { admin, msgId } of order.adminMsgs) {
-    bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: admin, message_id: msgId }).catch(() => {});
-    setTimeout(() => bot.deleteMessage(admin, msgId).catch(() => {}), 600000);
-  }
+  if (q.data.startsWith('admin_')) {
+    const [, action, uid, index] = q.data.split('_');
+    const userId = Number(uid);
+    const order = users[userId]?.orders[index];
+    if (!order || order.status !== '⏳ Pending') return;
 
-  saveAll();
-  showMainMenu(userId);
+    order.status = action === 'accept' ? '🟢 Accepted' : '❌ Rejected';
+
+    if (action === 'accept') giveXP(userId, order.pendingXP);
+
+    for (const { admin, msgId } of order.adminMsgs) {
+      bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: admin, message_id: msgId }).catch(() => {});
+      setTimeout(() => bot.deleteMessage(admin, msgId).catch(() => {}), 600000);
+    }
+
+    saveAll();
+    return showMainMenu(userId);
+  }
 });
 
 // ================= USER INPUT =================
@@ -338,8 +320,8 @@ bot.on('message', msg => {
 {
   reply_markup: {
     inline_keyboard: [
-      [{ text: '✅ Confirm', callback_data: 'confirm_order' }],
-      [{ text: '🏠 Back to Menu', callback_data: 'reload_menu' }]
+      [{ text: '✅ Confirm', callback_data: 'confirm' }],
+      [{ text: '🏠 Back', callback_data: 'reload' }]
     ]
   }
 });
