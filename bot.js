@@ -137,20 +137,13 @@ ${orders}
 
 ${lb.text}`;
 
-  // Edit main menu if exists
+  // Delete old main menu if exists
   if (sessions[id]?.mainMenuId) {
-    try {
-      await bot.editMessageText(menuText, {
-        chat_id: id,
-        message_id: sessions[id].mainMenuId,
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: kb }
-      });
-      return;
-    } catch {}
+    await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
+    delete sessions[id].mainMenuId;
   }
 
-  // Send new main menu if it doesn't exist
+  // Send new main menu
   const msg = await bot.sendMessage(id, menuText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } });
   if (!sessions[id]) sessions[id] = {};
   sessions[id].mainMenuId = msg.message_id;
@@ -173,8 +166,16 @@ bot.on('callback_query', async q => {
 
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Cannot order.', show_alert: true });
+
     const u = users[id];
     if (Date.now() - u.lastOrderAt < 5 * 60000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true });
+
+    // Delete main menu before showing order summary
+    if (sessions[id]?.mainMenuId) {
+      await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
+      delete sessions[id].mainMenuId;
+    }
+
     sessions[id] = { product: q.data.replace('product_', ''), step: 'amount', msgIds: [], locked: false };
     return bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`).then(m => sessions[id].msgIds.push(m.message_id));
   }
@@ -182,6 +183,7 @@ bot.on('callback_query', async q => {
   if (q.data === 'confirm') {
     if (!s || s.locked) return;
     s.locked = true;
+
     const u = users[id];
     u.lastOrderAt = Date.now();
 
@@ -213,6 +215,7 @@ bot.on('callback_query', async q => {
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
+    // Delete order summary messages
     if (s.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
     delete sessions[id].product;
     delete sessions[id].grams;
