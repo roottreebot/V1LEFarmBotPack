@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – SINGLE MAIN MENU, TEMP ORDER SUMMARY, BOLD FONTS + BACK DELETE) ===
+// === V1LE FARM BOT (FINAL – SINGLE MAIN MENU, TEMP ORDER SUMMARY, BOLD FONTS + BUTTON LOCK) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -136,9 +136,7 @@ ${lb.text}`;
     return bot.editMessageText(menuText, { chat_id: id, message_id: sessions[id].mainMenuId, parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }).catch(() => showMainMenu(id, page));
   }
 
-  if (sessions[id]?.mainMenuId) {
-    await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
-  }
+  if (sessions[id]?.mainMenuId) await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
 
   const msg = await bot.sendMessage(id, menuText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } });
   if (!sessions[id]) sessions[id] = {};
@@ -153,97 +151,110 @@ bot.on('callback_query', async q => {
   const id = q.message.chat.id;
   ensureUser(id, q.from.username);
   await bot.answerCallbackQuery(q.id).catch(() => {});
+  if (!sessions[id]) sessions[id] = {};
+  if (sessions[id].locked) return; // prevent double click
+  sessions[id].locked = true;
+
   const s = sessions[id];
 
-  // Reload / Prev / Next -> edit main menu
-  if (q.data === 'reload') return showMainMenu(id, 0, true);
-  if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])), true);
+  try {
+    // Reload / Prev / Next -> edit main menu
+    if (q.data === 'reload') { await showMainMenu(id, 0, true); sessions[id].locked = false; return; }
+    if (q.data.startsWith('lb_')) { await showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])), true); sessions[id].locked = false; return; }
 
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return showMainMenu(id, 0, true); }
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id, 0, true); }
+    if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); await showMainMenu(id, 0, true); sessions[id].locked = false; return; }
+    if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); await showMainMenu(id, 0, true); sessions[id].locked = false; return; }
 
-  if (q.data.startsWith('product_')) {
-    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Cannot order.', show_alert: true });
+    if (q.data.startsWith('product_')) {
+      if (!meta.storeOpen) { await bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Cannot order.', show_alert: true }); sessions[id].locked = false; return; }
 
-    const u = users[id];
-    if (Date.now() - u.lastOrderAt < 5 * 60000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true });
+      const u = users[id];
+      if (Date.now() - u.lastOrderAt < 5 * 60000) { await bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true }); sessions[id].locked = false; return; }
 
-    // Delete main menu before showing order summary
-    if (sessions[id]?.mainMenuId) await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
+      if (sessions[id]?.mainMenuId) await bot.deleteMessage(id, sessions[id].mainMenuId).catch(() => {});
 
-    sessions[id] = { product: q.data.replace('product_', ''), step: 'amount', msgIds: [], locked: false };
-    return bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`).then(m => sessions[id].msgIds.push(m.message_id));
-  }
-
-  if (q.data === 'confirm') {
-    if (!s || s.locked) return;
-    s.locked = true;
-
-    const u = users[id];
-    u.lastOrderAt = Date.now();
-
-    if (!s.product || !s.grams || !s.cash) return bot.sendMessage(id, '❌ Order info missing');
-
-    const order = {
-      product: s.product,
-      grams: s.grams,
-      cash: s.cash,
-      status: '⏳ Pending',
-      createdAt: Date.now(),
-      pendingXP: Math.floor(2 + s.cash * 0.5),
-      adminMsgs: []
-    };
-
-    u.orders.push(order);
-    u.orders = u.orders.slice(-10);
-    saveAll();
-
-    for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(
-        admin,
-        `🧾 *NEW ORDER*\n@${u.username || id}\n*${order.product}* — ${order.grams}g — $${order.cash}`,
-        { reply_markup: { inline_keyboard: [[
-          { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
-          { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
-        ]] }, parse_mode: 'Markdown' }
-      );
-      order.adminMsgs.push({ admin, msgId: m.message_id });
+      sessions[id] = { product: q.data.replace('product_', ''), step: 'amount', msgIds: [], locked: false };
+      await bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`).then(m => sessions[id].msgIds.push(m.message_id));
+      sessions[id].locked = false;
+      return;
     }
 
-    // Delete order summary messages
-    if (s.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
-    delete sessions[id];
+    if (q.data === 'confirm') {
+      if (!s || s.locked) { sessions[id].locked = false; return; }
+      s.locked = true;
 
-    return showMainMenu(id, 0);
-  }
+      const u = users[id];
+      u.lastOrderAt = Date.now();
 
-  if (q.data === 'back') {
-    // Delete order summary and show main menu
-    if (s?.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
-    delete sessions[id];
-    return showMainMenu(id, 0);
-  }
+      if (!s.product || !s.grams || !s.cash) { await bot.sendMessage(id, '❌ Order info missing'); sessions[id].locked = false; return; }
 
-  if (q.data.startsWith('admin_')) {
-    const [, action, uid, index] = q.data.split('_');
-    const userId = Number(uid);
-    const order = users[userId]?.orders[index];
-    if (!order || order.status !== '⏳ Pending') return;
+      const order = {
+        product: s.product,
+        grams: s.grams,
+        cash: s.cash,
+        status: '⏳ Pending',
+        createdAt: Date.now(),
+        pendingXP: Math.floor(2 + s.cash * 0.5),
+        adminMsgs: []
+      };
 
-    order.status = action === 'accept' ? '🟢 Accepted' : '❌ Rejected';
-    if (action === 'accept') {
-      giveXP(userId, order.pendingXP);
-      delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order accepted!').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
-    } else {
-      bot.sendMessage(userId, '❌ Your order rejected').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
-      users[userId].orders = users[userId].orders.filter(o => o !== order);
+      u.orders.push(order);
+      u.orders = u.orders.slice(-10);
+      saveAll();
+
+      for (const admin of ADMIN_IDS) {
+        const m = await bot.sendMessage(
+          admin,
+          `🧾 *NEW ORDER*\n@${u.username || id}\n*${order.product}* — ${order.grams}g — $${order.cash}`,
+          { reply_markup: { inline_keyboard: [[
+            { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
+            { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
+          ]] }, parse_mode: 'Markdown' }
+        );
+        order.adminMsgs.push({ admin, msgId: m.message_id });
+      }
+
+      // Delete order summary messages
+      if (s.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
+      delete sessions[id];
+
+      await showMainMenu(id, 0);
+      sessions[id].locked = false;
+      return;
     }
 
-    for (const { admin, msgId } of order.adminMsgs) bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: admin, message_id: msgId }).catch(() => {});
-    saveAll();
-    return showMainMenu(userId, 0, true);
-  }
+    if (q.data === 'back') {
+      // Delete order summary and show main menu
+      if (s?.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
+      delete sessions[id];
+      await showMainMenu(id, 0);
+      sessions[id].locked = false;
+      return;
+    }
+
+    if (q.data.startsWith('admin_')) {
+      const [, action, uid, index] = q.data.split('_');
+      const userId = Number(uid);
+      const order = users[userId]?.orders[index];
+      if (!order || order.status !== '⏳ Pending') { sessions[id].locked = false; return; }
+
+      order.status = action === 'accept' ? '🟢 Accepted' : '❌ Rejected';
+      if (action === 'accept') {
+        giveXP(userId, order.pendingXP);
+        delete order.pendingXP;
+        bot.sendMessage(userId, '✅ Your order accepted!').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
+      } else {
+        bot.sendMessage(userId, '❌ Your order rejected').then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
+        users[userId].orders = users[userId].orders.filter(o => o !== order);
+      }
+
+      for (const { admin, msgId } of order.adminMsgs) bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: admin, message_id: msgId }).catch(() => {});
+      saveAll();
+      await showMainMenu(userId, 0, true);
+      sessions[id].locked = false;
+      return;
+    }
+  } catch (err) { console.error(err); sessions[id].locked = false; }
 });
 
 // ================= USER INPUT =================
@@ -253,13 +264,14 @@ bot.on('message', msg => {
   if (!msg.from.is_bot) setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
 
   const s = sessions[id];
-  if (!s || s.step !== 'amount') return;
+  if (!s || s.step !== 'amount' || s.locked) return;
+  s.locked = true;
 
   const price = PRODUCTS[s.product].price;
   let grams, cash;
   if (msg.text.startsWith('$')) { cash = parseFloat(msg.text.slice(1)); grams = +(cash / price).toFixed(1); } 
   else { grams = Math.round(parseFloat(msg.text) * 2) / 2; cash = +(grams * price).toFixed(2); }
-  if (!grams || grams < 2) return;
+  if (!grams || grams < 2) { s.locked = false; return; }
 
   s.grams = grams; s.cash = cash;
 
@@ -273,5 +285,5 @@ bot.on('message', msg => {
 ⚖️ ${grams}g
 💲 $${cash}`,
   { reply_markup: { inline_keyboard: [[{ text: '✅ Confirm', callback_data: 'confirm' }], [{ text: '🏠 Back', callback_data: 'back' }]] }, parse_mode: 'Markdown' }
-  ).then(m => s.msgIds.push(m.message_id));
+  ).then(m => { s.msgIds.push(m.message_id); s.locked = false; });
 });
