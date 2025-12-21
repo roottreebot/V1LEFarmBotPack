@@ -201,8 +201,16 @@ bot.on('callback_query', async q => {
       if (!sessions[id]) sessions[id] = { msgIds: [] };
       s.step = 'amount';
       s.product = q.data.replace('product_', '');
-      if (s.mainMenuId) await bot.deleteMessage(id, s.mainMenuId).catch(() => {}); delete s.mainMenuId;
-      await bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`).then(m => s.msgIds.push(m.message_id));
+      
+      // Send prompt message and store its message_id
+      const promptMsg = await bot.sendMessage(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`);
+      if (!sessions[id]) sessions[id] = {};
+      sessions[id].promptMsgId = promptMsg.message_id;
+
+      // Store message IDs for cleanup if needed
+      if (s.msgIds) s.msgIds.push(promptMsg.message_id);
+      else s.msgIds = [promptMsg.message_id];
+
       return;
     }
 
@@ -256,26 +264,41 @@ bot.on('callback_query', async q => {
 });
 
 // ================= USER INPUT =================
-bot.on('message', msg => {
+bot.on('message', async msg => {
   const id = msg.chat.id;
   ensureUser(id, msg.from.username);
-  if (!msg.from.is_bot) setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
+  if (!msg.from.is_bot) {
+    setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
+  }
 
   const s = sessions[id];
+
+  // Check if message is a reply to the prompt message
+  if (s && s.promptMsgId && msg.reply_to_message && msg.reply_to_message.message_id === s.promptMsgId) {
+    // Delete the prompt message
+    bot.deleteMessage(id, s.promptMsgId).catch(() => {});
+    delete s.promptMsgId;
+  }
+
   if (!s || s.step !== 'amount') return;
 
   const price = PRODUCTS[s.product].price;
   let grams, cash;
-  if (msg.text.startsWith('$')) { cash = parseFloat(msg.text.slice(1)); grams = +(cash / price).toFixed(1); } 
-  else { grams = Math.round(parseFloat(msg.text) * 2) / 2; cash = +(grams * price).toFixed(2); }
+  if (msg.text.startsWith('$')) {
+    cash = parseFloat(msg.text.slice(1));
+    grams = +(cash / price).toFixed(1);
+  } else {
+    grams = Math.round(parseFloat(msg.text) * 2) / 2;
+    cash = +(grams * price).toFixed(2);
+  }
   if (!grams || grams < 2) { return; }
 
   s.grams = grams; s.cash = cash;
 
-  // Delete all previous messages in this session
-  if (s.msgIds && s.msgIds.length) { 
-    s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {})); 
-    s.msgIds = []; 
+  // Delete the prompt message if it still exists
+  if (s.promptMsgId) {
+    bot.deleteMessage(id, s.promptMsgId).catch(() => {});
+    delete s.promptMsgId;
   }
 
   // Send only ONE summary message and store its ID
