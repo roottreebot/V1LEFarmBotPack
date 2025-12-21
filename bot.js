@@ -83,20 +83,6 @@ const ASCII_LB = `*╔════════════╗*\n*║ LEADERBOARD
 // ================= SESSIONS =================
 const sessions = {};
 
-// ================= BUTTON COOLDOWN (PER BUTTON, NOT GLOBAL) =================
-const buttonCooldowns = {}; // Format: { userId: { buttonData: timestamp } }
-
-function isButtonOnCooldown(userId, buttonData) {
-  if (!buttonCooldowns[userId]) buttonCooldowns[userId] = {};
-  const lastPress = buttonCooldowns[userId][buttonData];
-  return lastPress && Date.now() - lastPress < 30_000;
-}
-
-function setButtonCooldown(userId, buttonData) {
-  if (!buttonCooldowns[userId]) buttonCooldowns[userId] = {};
-  buttonCooldowns[userId][buttonData] = Date.now();
-}
-
 // ================= LEADERBOARD =================
 function leaderboard(page = 0) {
   const list = Object.entries(users).filter(([, u]) => !u.banned).sort((a, b) => b[1].weeklyXp - a[1].weeklyXp);
@@ -176,55 +162,22 @@ bot.on('callback_query', async q => {
   if (!sessions[id]) sessions[id] = {};
   const s = sessions[id];
 
-  // Check if THIS specific button is on cooldown
-  if (isButtonOnCooldown(id, q.data)) {
-    await bot.answerCallbackQuery(q.id, { text: '⏳ Slow down! Please wait...', show_alert: false }).catch(() => {});
-    return;
-  }
+  // Removed overall 30s cooldown here
 
   try {
-    if (q.data === 'reload') {
-      setButtonCooldown(id, q.data);
-      await showMainMenu(id, 0, true);
-      return;
-    }
-    
-    if (q.data.startsWith('lb_')) {
-      setButtonCooldown(id, q.data);
-      await showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])), true);
-      return;
-    }
+    if (q.data === 'reload') { await showMainMenu(id, 0, true); return; }
+    if (q.data.startsWith('lb_')) { await showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])), true); return; }
 
-    if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
-      setButtonCooldown(id, q.data);
-      meta.storeOpen = true;
-      saveAll();
-      await showMainMenu(id, 0, true);
-      return;
-    }
-    
-    if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-      setButtonCooldown(id, q.data);
-      meta.storeOpen = false;
-      saveAll();
-      await showMainMenu(id, 0, true);
-      return;
-    }
+    if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); await showMainMenu(id, 0, true); return; }
+    if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); await showMainMenu(id, 0, true); return; }
 
     if (q.data.startsWith('product_')) {
-      setButtonCooldown(id, q.data);
-      if (!meta.storeOpen) {
-        await bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed!', show_alert: true });
-        return;
-      }
+      if (!meta.storeOpen) { await bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed!', show_alert: true }); return; }
       const u = users[id];
-      if (Date.now() - u.lastOrderAt < 5 * 60_000) {
-        await bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true });
-        return;
-      }
+      if (Date.now() - u.lastOrderAt < 5 * 60_000) { await bot.answerCallbackQuery(q.id, { text: 'Please wait before ordering again', show_alert: true }); return; }
 
       // Merge session
-      if (!sessions[id]) sessions[id] = { msgIds: [] };
+      if (!sessions[id]) sessions[id] = { msgIds: [], lockedUntil: 0 };
       s.step = 'amount';
       s.product = q.data.replace('product_', '');
       if (s.mainMenuId) await bot.deleteMessage(id, s.mainMenuId).catch(() => {}); delete s.mainMenuId;
@@ -233,7 +186,6 @@ bot.on('callback_query', async q => {
     }
 
     if (q.data === 'confirm') {
-      setButtonCooldown(id, q.data);
       if (!s || !s.product || !s.grams || !s.cash) return bot.sendMessage(id, '❌ Order info missing');
       const u = users[id];
       u.lastOrderAt = Date.now();
@@ -252,7 +204,6 @@ bot.on('callback_query', async q => {
     }
 
     if (q.data === 'back') {
-      setButtonCooldown(id, q.data);
       if (s?.msgIds) s.msgIds.forEach(mid => bot.deleteMessage(id, mid).catch(() => {}));
       delete sessions[id];
       await showMainMenu(id, 0);
@@ -260,7 +211,6 @@ bot.on('callback_query', async q => {
     }
 
     if (q.data.startsWith('admin_')) {
-      setButtonCooldown(id, q.data);
       const [, action, uid, index] = q.data.split('_');
       const userId = Number(uid);
       const order = users[userId]?.orders[index];
@@ -292,18 +242,13 @@ bot.on('message', msg => {
 
   const s = sessions[id];
   if (!s || s.step !== 'amount') return;
-
-  // Check cooldown for text input (prevent spam on amount entry)
-  if (isButtonOnCooldown(id, 'text_input')) {
-    return;
-  }
-  setButtonCooldown(id, 'text_input');
+  // Removed cooldown here as well
 
   const price = PRODUCTS[s.product].price;
   let grams, cash;
   if (msg.text.startsWith('$')) { cash = parseFloat(msg.text.slice(1)); grams = +(cash / price).toFixed(1); } 
   else { grams = Math.round(parseFloat(msg.text) * 2) / 2; cash = +(grams * price).toFixed(2); }
-  if (!grams || grams < 2) { return; }
+  if (!grams || grams < 2) { s.lockedUntil = 0; return; }
 
   s.grams = grams; s.cash = cash;
 
