@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – LIVE UPDATES, ADMIN ORDER EDIT FOR ALL, /stats, LAST 5 ORDERS) ===
+// === V1LE FARM BOT (FINAL – LIVE MAIN MENU + FULL FEATURES) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -21,11 +21,12 @@ const META_FILE = 'meta.json';
 let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
-  : { weeklyReset: Date.now(), storeOpen: true, totalMoney: 0, totalOrders: 0, lastOrders: [] };
-
-// Ensure numeric defaults
-meta.totalMoney = Number(meta.totalMoney) || 0;
-meta.totalOrders = Number(meta.totalOrders) || 0;
+  : {
+      weeklyReset: Date.now(),
+      storeOpen: true,
+      totalMoney: 0,
+      totalOrders: 0
+    };
 
 function saveAll() {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
@@ -62,7 +63,7 @@ function giveXP(id, xp) {
   }
 }
 
-// XP bar helper
+// ================= XP BAR =================
 function xpBar(xp, lvl) {
   const max = lvl * 5;
   const fill = Math.floor((xp / max) * 10);
@@ -88,6 +89,7 @@ function cleanupOrders(id) {
 
 // ================= WEEKLY RESET =================
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 function checkWeeklyReset() {
   if (Date.now() - meta.weeklyReset >= WEEK_MS) {
     for (const id in users) users[id].weeklyXp = 0;
@@ -105,7 +107,9 @@ function getLeaderboard(page = 0) {
     .filter(([, u]) => !u.banned)
     .sort((a, b) => b[1].weeklyXp - a[1].weeklyXp);
 
+  const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
+
   let text = `*📊 Weekly Leaderboard*\n\n`;
   slice.forEach(([id, u], i) => {
     text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
@@ -149,7 +153,7 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const orders = u.orders.length
     ? u.orders.map(o =>
-        `${o.status === '✅ Accepted' ? '🟢' : o.status === '❌ Rejected' ? '🔴' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
+        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
@@ -197,16 +201,20 @@ bot.on('callback_query', async q => {
   if (q.data === 'reload') return showMainMenu(id);
   if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
 
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return showMainMenu(id); }
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id); }
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = true; saveAll(); return showMainMenu(id);
+  }
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = false; saveAll(); return showMainMenu(id);
+  }
 
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
     if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
     s.lastClick = Date.now();
 
-    const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
-    if (pendingCount >= 2) return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
+    const pending = users[id].orders.filter(o => o.status === 'Pending').length;
+    if (pending >= 2) return bot.answerCallbackQuery(q.id, { text: '🛑 Max 2 pending orders!', show_alert: true });
 
     s.product = q.data.replace('product_', '');
     s.step = 'amount';
@@ -215,6 +223,8 @@ bot.on('callback_query', async q => {
 
   if (q.data === 'confirm_order') {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
+    const pending = users[id].orders.filter(o => o.status === 'Pending').length;
+    if (pending >= 2) return bot.answerCallbackQuery(q.id, { text: '🛑 Max 2 pending orders!', show_alert: true });
 
     const xp = Math.floor(2 + s.cash * 0.5);
     const order = {
@@ -227,7 +237,11 @@ bot.on('callback_query', async q => {
     };
 
     users[id].orders.push(order);
-    users[id].orders = users[id].orders.slice(-5);
+    cleanupOrders(id);
+    saveAll();
+
+    meta.totalMoney += order.cash;
+    meta.totalOrders += 1;
     saveAll();
 
     for (const admin of ADMIN_IDS) {
@@ -255,7 +269,6 @@ Status: ⚪ Pending`,
     return showMainMenu(id);
   }
 
-  // ================= ADMIN ACCEPT/REJECT =================
   if (q.data.startsWith('admin_')) {
     const [, action, uid, index] = q.data.split('_');
     const userId = Number(uid);
@@ -268,21 +281,9 @@ Status: ⚪ Pending`,
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
-
-      meta.totalMoney += order.cash;
-      meta.totalOrders++;
-      meta.lastOrders.push({
-        user: users[userId].username || userId,
-        product: order.product,
-        grams: order.grams,
-        cash: order.cash,
-        status: order.status
-      });
-      if (meta.lastOrders.length > 5) meta.lastOrders = meta.lastOrders.slice(-5);
-      saveAll();
+      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
     } else {
-      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
+      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
       users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
@@ -293,25 +294,13 @@ Grams: ${order.grams}g
 Price: $${order.cash}
 Status: ${order.status}`;
 
-    // Edit for all admins
-    order.adminMsgs.forEach(({ admin, msgId }) => {
+    // edit for all admins
+    for (const { admin, msgId } of order.adminMsgs) {
       bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
-    });
+    }
 
-    // Update main menu live
+    saveAll();
     showMainMenu(userId);
-    return;
-  }
-
-  // ================= STATS INLINE BUTTONS =================
-  if (q.data === 'reset_money') { meta.totalMoney = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Total money reset!' }); }
-  if (q.data === 'reset_orders') { meta.totalOrders = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Total orders reset!' }); }
-  if (q.data === 'reset_both') { meta.totalMoney = 0; meta.totalOrders = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Money and orders reset!' }); }
-  if (q.data === 'show_last_orders') {
-    const lastText = meta.lastOrders.length
-      ? meta.lastOrders.map((o,i)=>`#${i+1} — *@${o.user}* — ${o.product} — ${o.grams}g — $${o.cash} — *${o.status}*`).join('\n')
-      : '_No recent orders_';
-    return bot.sendMessage(id, `📜 *Last 5 Orders*\n${lastText}`, { parse_mode:'Markdown' });
   }
 });
 
@@ -337,7 +326,6 @@ bot.on('message', msg => {
     grams = Math.round(parseFloat(text) * 2) / 2;
     cash = +(grams * price).toFixed(2);
   }
-
   if (!grams || grams < 2) return;
 
   s.grams = grams;
@@ -405,8 +393,6 @@ bot.onText(/\/importdb/, msg => {
           const data = JSON.parse(fs.readFileSync(path));
           users = data.users||{};
           meta = data.meta||meta;
-          meta.totalMoney = Number(meta.totalMoney)||0;
-          meta.totalOrders = Number(meta.totalOrders)||0;
           saveAll();
           bot.sendMessage(id,'✅ Database imported successfully');
         }catch{
@@ -423,20 +409,26 @@ bot.onText(/\/importdb/, msg => {
 bot.onText(/\/stats/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
+  bot.sendMessage(id,
+`💰 Total Money Earned: $${meta.totalMoney.toFixed(2)}
+📦 Total Orders: ${meta.totalOrders}`, {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🔄 Reset Money', callback_data: 'reset_money' }]
+      ]
+    }
+  });
+});
 
-  const statsText = `💰 Total Money Earned: $${meta.totalMoney}
-📦 Total Orders: ${meta.totalOrders}`;
-
-  const buttons = [
-    [
-      { text: 'Reset Money', callback_data: 'reset_money' },
-      { text: 'Reset Orders', callback_data: 'reset_orders' }
-    ],
-    [
-      { text: 'Reset Both', callback_data: 'reset_both' },
-      { text: 'Last 5 Orders', callback_data: 'show_last_orders' }
-    ]
-  ];
-
-  bot.sendMessage(id, statsText, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: buttons } });
+bot.on('callback_query', q => {
+  const id = q.message.chat.id;
+  if (q.data === 'reset_money' && ADMIN_IDS.includes(id)) {
+    meta.totalMoney = 0;
+    meta.totalOrders = 0;
+    saveAll();
+    bot.editMessageText(
+      `💰 Total Money Earned: $${meta.totalMoney.toFixed(2)}\n📦 Total Orders: ${meta.totalOrders}`,
+      { chat_id: id, message_id: q.message.message_id }
+    ).catch(()=>{});
+  }
 });
