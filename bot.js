@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL WITH FULL FEATURES + WEEKLY LEADERBOARD) ===
+// === V1LE FARM BOT (FINAL WITH FULL FEATURES + WEEKLY LEADERBOARD + RELOAD BUTTON) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -117,8 +117,8 @@ function getLeaderboard(page = 0) {
   });
 
   const buttons = [[
-    { text: '⬅ Prev', callback_data: `lb_${page - 1}`, disabled: page <= 0 },
-    { text: '➡ Next', callback_data: `lb_${page + 1}`, disabled: page >= totalPages - 1 }
+    { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
+    { text: '➡ Next', callback_data: `lb_${page + 1}` }
   ]];
 
   return { text, buttons };
@@ -162,7 +162,8 @@ async function showMainMenu(id, lbPage = 0) {
 
   let kb = [
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
-    lb.buttons[0]
+    lb.buttons[0],
+    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
   if (ADMIN_IDS.includes(id)) {
@@ -291,7 +292,6 @@ Status: ⚪ Pending`,
       });
     }
 
-    // Update all admin messages
     const adminText = `🧾 *ORDER UPDATED*
 User: @${users[userId].username || userId}
 Product: ${order.product}
@@ -348,7 +348,7 @@ bot.on('message', msg => {
       reply_markup: {
         inline_keyboard: [
           [{ text: '✅ Confirm', callback_data: 'confirm_order' }],
-          [{ text: '🏠 Back to Menu', callback_data: 'back_main' }]
+          [{ text: '🏠 Back to Menu', callback_data: 'reload' }]
         ]
       }
     }
@@ -393,7 +393,6 @@ bot.onText(/\/unban (.+)/, (msg, match) => {
 bot.onText(/\/exportdb/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
   bot.sendDocument(id, DB_FILE);
 });
 
