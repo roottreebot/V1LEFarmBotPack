@@ -424,6 +424,55 @@ ${comparison}`;
   }
 });
 
+// ================= /cash COMMAND (ADMIN ONLY, SAFE RESET) =================
+bot.onText(/\/cash/, async (msg) => {
+  const chatId = msg.chat.id;
+  if (!ADMIN_IDS.includes(chatId)) return;
+
+  // Calculate total earned from accepted orders
+  let totalMoney = 0;
+  for (const u of Object.values(users)) {
+    for (const o of u.orders) {
+      if (o.status === '✅ Accepted') totalMoney += o.cash;
+    }
+  }
+
+  const text = `💰 *Total Money Made:* $${totalMoney.toFixed(2)}`;
+
+  // Store the current total in a temporary session for reset
+  if (!sessions[chatId]) sessions[chatId] = {};
+  sessions[chatId].cashTotal = totalMoney;
+
+  const sentMsg = await bot.sendMessage(chatId, text, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🔄 Reset Display', callback_data: 'cash_reset_display' }]
+      ]
+    }
+  });
+});
+
+// ================= CASH RESET INLINE (DISPLAY ONLY) =================
+bot.on('callback_query', async (q) => {
+  const chatId = q.message.chat.id;
+  const data = q.data;
+
+  if (!ADMIN_IDS.includes(chatId)) return;
+  await bot.answerCallbackQuery(q.id);
+
+  if (data === 'cash_reset_display') {
+    // Reset the total money display only
+    sessions[chatId].cashTotal = 0;
+
+    bot.editMessageText('💰 Total Money Made: $0.00', {
+      chat_id: chatId,
+      message_id: q.message.message_id,
+      parse_mode: 'Markdown'
+    });
+  }
+});
+
 // ================= BROADCAST =================
 bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   const adminId = msg.chat.id;
