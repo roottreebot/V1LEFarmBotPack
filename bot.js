@@ -470,28 +470,6 @@ ${comparison}`;
   }
 });
 
-
-  
-
-    endGame(result);
-  }
-});
-
-// ================= /cash COMMAND (ADMIN ONLY, SAFE RESET) =================
-bot.onText(/\/cash/, async (msg) => {
-  const chatId = msg.chat.id;
-  if (!ADMIN_IDS.includes(chatId)) return;
-
-  // Calculate total earned from accepted orders
-  let totalMoney = 0;
-  for (const u of Object.values(users)) {
-    for (const o of u.orders) {
-      if (o.status === '✅ Accepted') totalMoney += o.cash;
-    }
-  }
-
-  
-
 // ================= /cash COMMAND (ADMIN ONLY, SAFE RESET) =================
 bot.onText(/\/cash/, async (msg) => {
   const chatId = msg.chat.id;
