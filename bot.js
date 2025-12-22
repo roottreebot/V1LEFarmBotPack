@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – MOBILE FRIENDLY, FULL FEATURES, 2 PENDING ORDERS + /stats LAST 5 ORDERS) ===
+// === V1LE FARM BOT (FINAL – MOBILE FRIENDLY, FULL FEATURES, 2 PENDING ORDERS + /stats LAST 5 ORDERS, ADMIN EDIT SHARED) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -22,6 +22,10 @@ let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
   : { weeklyReset: Date.now(), storeOpen: true, totalMoney: 0, totalOrders: 0, lastOrders: [] };
+
+// Ensure numeric defaults
+meta.totalMoney = Number(meta.totalMoney) || 0;
+meta.totalOrders = Number(meta.totalOrders) || 0;
 
 function saveAll() {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
@@ -256,6 +260,7 @@ Status: ⚪ Pending`,
     return showMainMenu(id);
   }
 
+  // ================= ADMIN ACCEPT/REJECT =================
   if (q.data.startsWith('admin_')) {
     const [, action, uid, index] = q.data.split('_');
     const userId = Number(uid);
@@ -270,7 +275,6 @@ Status: ⚪ Pending`,
       delete order.pendingXP;
       bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
 
-      // Add to total money and orders
       meta.totalMoney += order.cash;
       meta.totalOrders++;
       meta.lastOrders.push({
@@ -287,6 +291,7 @@ Status: ⚪ Pending`,
       users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
+    // Edit message for all admins
     const adminText = `🧾 *ORDER UPDATED*
 User: @${users[userId].username || userId}
 Product: ${order.product}
@@ -294,29 +299,17 @@ Grams: ${order.grams}g
 Price: $${order.cash}
 Status: ${order.status}`;
 
-    for (const { admin, msgId } of order.adminMsgs) {
+    order.adminMsgs.forEach(({ admin, msgId }) => {
       bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
-    }
+    });
 
-    saveAll();
     return showMainMenu(userId);
   }
 
   // ================= STATS INLINE BUTTONS =================
-  if (q.data === 'reset_money') {
-    meta.totalMoney = 0; saveAll();
-    return bot.answerCallbackQuery(q.id, { text: '✅ Total money reset!' });
-  }
-  if (q.data === 'reset_orders') {
-    meta.totalOrders = 0; saveAll();
-    return bot.answerCallbackQuery(q.id, { text: '✅ Total orders reset!' });
-  }
-  if (q.data === 'reset_both') {
-    meta.totalMoney = 0;
-    meta.totalOrders = 0;
-    saveAll();
-    return bot.answerCallbackQuery(q.id, { text: '✅ Money and orders reset!' });
-  }
+  if (q.data === 'reset_money') { meta.totalMoney = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Total money reset!' }); }
+  if (q.data === 'reset_orders') { meta.totalOrders = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Total orders reset!' }); }
+  if (q.data === 'reset_both') { meta.totalMoney = 0; meta.totalOrders = 0; saveAll(); return bot.answerCallbackQuery(q.id, { text: '✅ Money and orders reset!' }); }
   if (q.data === 'show_last_orders') {
     const lastText = meta.lastOrders.length
       ? meta.lastOrders.map((o,i)=>`#${i+1} — *@${o.user}* — ${o.product} — ${o.grams}g — $${o.cash} — *${o.status}*`).join('\n')
@@ -415,6 +408,8 @@ bot.onText(/\/importdb/, msg => {
           const data = JSON.parse(fs.readFileSync(path));
           users = data.users||{};
           meta = data.meta||meta;
+          meta.totalMoney = Number(meta.totalMoney)||0;
+          meta.totalOrders = Number(meta.totalOrders)||0;
           saveAll();
           bot.sendMessage(id,'✅ Database imported successfully');
         }catch{
