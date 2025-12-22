@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL WITH FULL FEATURES + WEEKLY LEADERBOARD + RELOAD BUTTON) ===
+// === V1LE FARM BOT (FINAL – MOBILE FRIENDLY, NO ASCII, FULL FEATURES) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -70,9 +70,6 @@ const PRODUCTS = {
   'Killer Green Budz': { price: 10 }
 };
 
-// ================= ASCII =================
-const ASCII_MAIN = `*V1LE FARM*`;
-
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -109,9 +106,9 @@ function getLeaderboard(page = 0) {
   const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
-  let text = `\n*WEEKLY LEADERBOARD*\n`;
+  let text = `*📊 Weekly Leaderboard*\n\n`;
   slice.forEach(([id, u], i) => {
-    text += `#${page * lbSize + i + 1} — @${u.username || id} — Lv ${u.level} — XP ${u.weeklyXp}\n`;
+    text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
   });
 
   const buttons = [[
@@ -152,7 +149,7 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const orders = u.orders.length
     ? u.orders.map(o =>
-        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} ${o.product} — ${o.grams}g — $${o.cash} — *${o.status}*`
+        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
@@ -175,10 +172,9 @@ async function showMainMenu(id, lbPage = 0) {
 
   await sendOrEdit(
     id,
-`${ASCII_MAIN}
-${storeStatus}
-🎚 Level: ${u.level}
-📊 XP: ${xpBar(u.xp, u.level)}  ← Progress to next level
+`${storeStatus}
+🎚 Level: *${u.level}*
+📊 XP: ${xpBar(u.xp, u.level)}
 
 📦 *Your Orders* (last 5)
 ${orders}
@@ -189,9 +185,7 @@ ${lb.text}`,
 }
 
 // ================= START =================
-bot.onText(/\/start|\/help/, msg => {
-  showMainMenu(msg.chat.id, 0);
-});
+bot.onText(/\/start|\/help/, msg => showMainMenu(msg.chat.id, 0));
 
 // ================= CALLBACKS =================
 bot.on('callback_query', async q => {
@@ -211,23 +205,17 @@ bot.on('callback_query', async q => {
   }
 
   if (q.data.startsWith('product_')) {
-    if (!meta.storeOpen) {
-      return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
-    }
-    if (Date.now() - (s.lastClick || 0) < 30000) {
-      return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
-    }
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
+    if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
     s.lastClick = Date.now();
 
     s.product = q.data.replace('product_', '');
     s.step = 'amount';
-    return sendOrEdit(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`);
+    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`);
   }
 
   if (q.data === 'confirm_order') {
-    if (!meta.storeOpen) {
-      return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
-    }
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
 
     const xp = Math.floor(2 + s.cash * 0.5);
     const order = {
@@ -280,14 +268,10 @@ Status: ⚪ Pending`,
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => {
-        setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000);
-      });
+      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
     } else {
-      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => {
-        setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000);
-        users[userId].orders = users[userId].orders.filter(o => o !== order);
-      });
+      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
     const adminText = `🧾 *ORDER UPDATED*
@@ -337,9 +321,8 @@ bot.on('message', msg => {
 
   sendOrEdit(
     id,
-`${ASCII_MAIN}
-🧾 Order Summary
-🌿 ${s.product}
+`🧾 *Order Summary*
+🌿 *${s.product}*
 ⚖️ ${grams}g
 💲 $${cash}`,
     {
@@ -348,73 +331,64 @@ bot.on('message', msg => {
           [{ text: '✅ Confirm', callback_data: 'confirm_order' }],
           [{ text: '🏠 Back to Menu', callback_data: 'reload' }]
         ]
-      }
+      },
+      parse_mode: 'Markdown'
     }
   );
 });
 
-// ================= ADMIN COMMANDS: /BAN /UNBAN /IMPORTDB /EXPORTDB =================
+// ================= ADMIN COMMANDS =================
 bot.onText(/\/ban (.+)/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
   let target = match[1];
   let uid = Number(target);
-  if (isNaN(uid)) {
-    uid = Object.keys(users).find(k => users[k].username?.toLowerCase() === target.replace('@', '').toLowerCase());
-  }
-
-  if (!uid || !users[uid]) return bot.sendMessage(id, 'User not found');
-
-  users[uid].banned = true;
-  saveAll();
-  bot.sendMessage(id, `🔨 Banned user [${users[uid].username || uid}](tg://user?id=${uid})`, { parse_mode: 'Markdown' });
+  if (isNaN(uid)) uid = Object.keys(users).find(k => users[k].username?.toLowerCase() === target.replace('@','').toLowerCase());
+  if (!uid || !users[uid]) return bot.sendMessage(id,'User not found');
+  users[uid].banned = true; saveAll();
+  bot.sendMessage(id, `🔨 Banned [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
 });
 
 bot.onText(/\/unban (.+)/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
   let target = match[1];
   let uid = Number(target);
-  if (isNaN(uid)) {
-    uid = Object.keys(users).find(k => users[k].username?.toLowerCase() === target.replace('@', '').toLowerCase());
-  }
-
-  if (!uid || !users[uid]) return bot.sendMessage(id, 'User not found');
-
-  users[uid].banned = false;
-  saveAll();
-  bot.sendMessage(id, `✅ Unbanned user [${users[uid].username || uid}](tg://user?id=${uid})`, { parse_mode: 'Markdown' });
+  if (isNaN(uid)) uid = Object.keys(users).find(k => users[k].username?.toLowerCase() === target.replace('@','').toLowerCase());
+  if (!uid || !users[uid]) return bot.sendMessage(id,'User not found');
+  users[uid].banned = false; saveAll();
+  bot.sendMessage(id, `✅ Unbanned [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
 });
 
+// ================= EXPORT/IMPORT DB =================
 bot.onText(/\/exportdb/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-  bot.sendDocument(id, DB_FILE);
+  const dbbackup = { users, meta };
+  fs.writeFileSync('dbbackup.json', JSON.stringify(dbbackup, null, 2));
+  bot.sendDocument(id, 'dbbackup.json');
 });
 
 bot.onText(/\/importdb/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
-  bot.sendMessage(id, 'Please send the JSON file to import').then(() => {
-    const listener = (fileMsg) => {
-      if (!fileMsg.document) return;
+  bot.sendMessage(id,'Please send the JSON file to import').then(()=>{
+    const listener = (fileMsg)=>{
+      if(!fileMsg.document) return;
       const fileId = fileMsg.document.file_id;
-      bot.downloadFile(fileId, './').then(path => {
-        try {
+      bot.downloadFile(fileId, './').then(path=>{
+        try{
           const data = JSON.parse(fs.readFileSync(path));
-          users = data.users || {};
-          meta = data.meta || meta;
+          users = data.users||{};
+          meta = data.meta||meta;
           saveAll();
-          bot.sendMessage(id, '✅ Database imported successfully');
-        } catch {
-          bot.sendMessage(id, '❌ Failed to import DB');
+          bot.sendMessage(id,'✅ Database imported successfully');
+        }catch{
+          bot.sendMessage(id,'❌ Failed to import DB');
         }
       });
-      bot.removeListener('message', listener);
+      bot.removeListener('message',listener);
     };
-    bot.on('message', listener);
+    bot.on('message',listener);
   });
 });
