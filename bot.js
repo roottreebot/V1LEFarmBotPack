@@ -57,6 +57,12 @@ function giveXP(id, xp) {
   }
 }
 
+function xpBar(xp, lvl) {
+  const max = lvl * 5;
+  const fill = Math.floor((xp / max) * 10);
+  return '🟩'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
+}
+
 // ================= PRODUCTS =================
 const PRODUCTS = {
   'God Complex': { price: 10 },
@@ -65,6 +71,14 @@ const PRODUCTS = {
 
 // ================= SESSIONS =================
 const sessions = {};
+
+// ================= CLEANUP =================
+function cleanupOrders(id) {
+  const u = users[id];
+  if (!u) return;
+  u.orders = u.orders.filter(o => o.status !== '❌ Rejected');
+  if (u.orders.length > 5) u.orders = u.orders.slice(-5);
+}
 
 // ================= WEEKLY RESET =================
 setInterval(() => {
@@ -75,6 +89,94 @@ setInterval(() => {
     saveAll();
   }
 }, 3600000);
+
+// ================= LEADERBOARD =================
+function getLeaderboard(page = 0) {
+  const lbSize = 5;
+  const list = Object.entries(users)
+    .filter(([, u]) => !u.banned)
+    .sort((a, b) => b[1].weeklyXp - a[1].weeklyXp);
+
+  const totalPages = Math.ceil(list.length / lbSize) || 1;
+  const slice = list.slice(page * lbSize, page * lbSize + lbSize);
+
+  let text = `*📊 Weekly Leaderboard*\n\n`;
+  slice.forEach(([id, u], i) => {
+    text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
+  });
+
+  const buttons = [[
+    { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
+    { text: '➡ Next', callback_data: `lb_${page + 1}` }
+  ]];
+
+  return { text, buttons };
+}
+
+// ================= SEND/EDIT MAIN MENU =================
+async function sendOrEdit(id, text, opt = {}) {
+  if (!sessions[id]) sessions[id] = {};
+  const mid = sessions[id].mainMsgId;
+
+  if (mid) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: id,
+        message_id: mid,
+        ...opt
+      });
+      return;
+    } catch {
+      sessions[id].mainMsgId = null;
+    }
+  }
+
+  const m = await bot.sendMessage(id, text, opt);
+  sessions[id].mainMsgId = m.message_id;
+}
+
+// ================= MAIN MENU =================
+async function showMainMenu(id, lbPage = 0) {
+  ensureUser(id);
+  cleanupOrders(id);
+
+  const u = users[id];
+  const orders = u.orders.length
+    ? u.orders.map(o =>
+        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
+      ).join('\n')
+    : '_No orders yet_';
+
+  const lb = getLeaderboard(lbPage);
+
+  let kb = [
+    ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
+    lb.buttons[0],
+    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
+  ];
+
+  if (ADMIN_IDS.includes(id)) {
+    const storeBtn = meta.storeOpen
+      ? { text: '🔴 Close Store', callback_data: 'store_close' }
+      : { text: '🟢 Open Store', callback_data: 'store_open' };
+    kb.push([storeBtn]);
+  }
+
+  const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
+
+  await sendOrEdit(
+    id,
+`${storeStatus}
+🎚 Level: *${u.level}*
+📊 XP: ${xpBar(u.xp, u.level)}
+
+📦 *Your Orders* (last 5)
+${orders}
+
+${lb.text}`,
+    { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
+  );
+}
 
 // ================= START =================
 bot.onText(/\/start|\/help/, msg => {
@@ -124,45 +226,10 @@ bot.onText(/\/stats/, msg => {
   );
 });
 
-// ================= BROADCAST CORE =================
-async function sendBroadcast({ text, photo, onlyActive }, adminId) {
-  let sent = 0, failed = 0;
-  const ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
-
-  for (const uid of Object.keys(users)) {
-    const u = users[uid];
-    if (u.banned) continue;
-    if (onlyActive && Date.now() - u.lastSeen > ACTIVE_MS) continue;
-
-    try {
-      if (photo) {
-        await bot.sendPhoto(uid, photo, { caption: text, parse_mode: 'Markdown' });
-      } else {
-        await bot.sendMessage(uid, text, { parse_mode: 'Markdown' });
-      }
-      sent++;
-    } catch {
-      failed++;
-    }
-
-    await new Promise(r => setTimeout(r, 35));
-  }
-
-  bot.sendMessage(
-    adminId,
-    `✅ *Broadcast Finished*\n\n📬 Sent: *${sent}*\n❌ Failed: *${failed}*`,
-    { parse_mode: 'Markdown' }
-  );
-}
-
 // ================= BROADCAST TEXT =================
 bot.onText(/\/broadcast (.+)/, (msg, match) => {
   if (!ADMIN_IDS.includes(msg.chat.id)) return;
-  sessions[msg.chat.id] = {
-    type: 'text',
-    text: match[1]
-  };
-
+  sessions[msg.chat.id] = { type: 'text', text: match[1] };
   bot.sendMessage(
     msg.chat.id,
 `📣 *Broadcast Preview*
@@ -202,13 +269,33 @@ bot.on('callback_query', async q => {
   }
 
   if (q.data.startsWith('bc_send')) {
-    await sendBroadcast(
-      {
-        text: s.text,
-        photo: s.photo,
-        onlyActive: q.data === 'bc_send_active'
-      },
-      id
+    let onlyActive = q.data === 'bc_send_active';
+    let sent = 0, failed = 0;
+    const ACTIVE_MS = 7 * 24 * 60 * 60 * 1000;
+
+    for (const uid of Object.keys(users)) {
+      const u = users[uid];
+      if (u.banned) continue;
+      if (onlyActive && Date.now() - u.lastSeen > ACTIVE_MS) continue;
+
+      try {
+        if (s.type === 'photo' && s.photo) {
+          await bot.sendPhoto(uid, s.photo, { caption: s.text || '', parse_mode: 'Markdown' });
+        } else {
+          await bot.sendMessage(uid, s.text || '', { parse_mode: 'Markdown' });
+        }
+        sent++;
+      } catch {
+        failed++;
+      }
+
+      await new Promise(r => setTimeout(r, 35));
+    }
+
+    bot.sendMessage(
+      id,
+      `✅ *Broadcast Finished*\n\n📬 Sent: *${sent}*\n❌ Failed: *${failed}*`,
+      { parse_mode: 'Markdown' }
     );
     delete sessions[id];
   }
@@ -225,7 +312,7 @@ bot.on('message', msg => {
   if (s.step === 'wait_photo' && msg.photo) {
     s.photo = msg.photo[msg.photo.length - 1].file_id;
     s.step = 'wait_caption';
-    return bot.sendMessage(id, '✏️ Send caption text (or `skip`)');
+    return bot.sendMessage(id, '✏️ Send caption text (or type `skip`)');
   }
 
   if (s.step === 'wait_caption' && msg.text) {
