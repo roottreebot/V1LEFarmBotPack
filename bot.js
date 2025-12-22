@@ -1,7 +1,6 @@
-// === V1LE FARM BOT (FINAL – LAST 5 ORDERS + IMPORT/EXPORT FIXED) ===
+// === V1LE FARM BOT (FINAL – BAN/UNBAN + LAST 5 ORDERS + IMPORT/EXPORT FIXED) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
-const path = require('path');
 
 const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(Number) || [];
@@ -16,7 +15,6 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // ================= FILES =================
 const DB_FILE = 'users.json';
 const META_FILE = 'meta.json';
-const TMP_IMPORT = 'import_tmp.json';
 
 let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
@@ -166,6 +164,28 @@ bot.onText(/\/importdb/, msg => {
   bot.sendMessage(id, '📥 Send the backup JSON file to import.');
 });
 
+// ================= BAN / UNBAN =================
+bot.onText(/\/(ban|unban)\s+(.+)/, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const action = match[1];
+  const target = match[2].trim();
+  let uid = Number(target);
+
+  if (isNaN(uid)) {
+    uid = Object.keys(users).find(
+      k => users[k].username?.toLowerCase() === target.replace('@', '').toLowerCase()
+    );
+  }
+
+  if (!uid || !users[uid]) return bot.sendMessage(id, '❌ User not found');
+
+  users[uid].banned = action === 'ban';
+  saveAll();
+  bot.sendMessage(id, `${action === 'ban' ? '🔨 Banned' : '✅ Unbanned'} user [${users[uid].username || uid}](tg://user?id=${uid})`, { parse_mode: 'Markdown' });
+});
+
 // ================= CALLBACKS =================
 bot.on('callback_query', async q => {
   const id = q.message.chat.id;
@@ -193,10 +213,7 @@ bot.on('callback_query', async q => {
     }
 
     if (u.productLockUntil > now) {
-      return bot.answerCallbackQuery(q.id, {
-        text: `⏳ Wait ${Math.ceil((u.productLockUntil - now)/1000)}s`,
-        show_alert: true
-      });
+      return bot.answerCallbackQuery(q.id, { text: `⏳ Wait ${Math.ceil((u.productLockUntil - now)/1000)}s`, show_alert: true });
     }
 
     if (now - u.lastProductClick < 1500) {
@@ -265,10 +282,7 @@ Status: ⏳ Pending`,
 ${order.product} — ${order.grams}g — $${order.cash}`;
 
     for (const { admin, msgId } of order.adminMsgs) {
-      bot.editMessageText(finalText, {
-        chat_id: admin,
-        message_id: msgId
-      }).catch(() => {});
+      bot.editMessageText(finalText, { chat_id: admin, message_id: msgId }).catch(() => {});
     }
 
     saveAll();
@@ -281,9 +295,7 @@ bot.on('message', async msg => {
   const id = msg.chat.id;
   ensureUser(id, msg.from.username);
 
-  if (!msg.from.is_bot) {
-    setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
-  }
+  if (!msg.from.is_bot) setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
 
   const s = sessions[id];
 
