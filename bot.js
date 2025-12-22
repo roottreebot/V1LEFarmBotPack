@@ -1,4 +1,4 @@
-// === V1LE FARM BOT — FINAL STABLE FULL BUILD ===
+// === V1LE FARM BOT — FINAL STABLE (IMPORT FIX + AUTO DELETE USER MSGS) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
@@ -174,39 +174,42 @@ bot.onText(/\/exportdb/, m => {
 
 bot.onText(/\/importdb/, m => {
   if (!ADMIN_IDS.includes(m.chat.id)) return;
-  const files = fs.readdirSync(BACKUP_DIR).sort().reverse();
 
+  const files = fs.readdirSync(BACKUP_DIR).sort().reverse();
   if (!files.length) {
     sessions[m.chat.id] = { awaitingDB: true };
-    return bot.sendMessage(m.chat.id, '📥 Send backup JSON file');
+    return bot.sendMessage(m.chat.id, '📥 Send the JSON backup file now');
   }
 
   const data = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, files[0])));
   users = data.users;
   meta = data.meta;
   saveAll();
-  bot.sendMessage(m.chat.id, '✅ Database imported');
+  bot.sendMessage(m.chat.id, '✅ Database imported from latest backup');
 });
 
 bot.on('document', async msg => {
   const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id) || !sessions[id]?.awaitingDB) return;
+  if (!ADMIN_IDS.includes(id)) return;
+  if (!sessions[id]?.awaitingDB) return;
 
   const file = await bot.getFile(msg.document.file_id);
   const filePath = await bot.downloadFile(file.file_path, './');
+
   const data = JSON.parse(fs.readFileSync(filePath));
   users = data.users;
   meta = data.meta;
   saveAll();
 
   delete sessions[id].awaitingDB;
-  bot.sendMessage(id, '✅ Database imported from file');
+  bot.sendMessage(id, '✅ Database imported successfully');
 });
 
 /* ================= CALLBACKS ================= */
 bot.on('callback_query', async q => {
   const id = q.message.chat.id;
-  if (!spamCheck(id)) return bot.answerCallbackQuery(q.id, { text: '⏳ Slow down', show_alert: true });
+  if (!spamCheck(id))
+    return bot.answerCallbackQuery(q.id, { text: '⏳ Slow down', show_alert: true });
 
   ensureUser(id, q.from.username);
   await bot.answerCallbackQuery(q.id).catch(() => {});
@@ -235,18 +238,13 @@ bot.on('callback_query', async q => {
 
   if (q.data === 'confirm') {
     if (!s.product || !s.grams) return;
-
-    const order = {
+    users[id].orders.push({
       product: s.product,
       grams: s.grams,
       cash: s.cash,
       status: '⏳ Pending',
-      createdAt: Date.now(),
-      pendingXP: Math.floor(2 + s.cash * 0.5),
-      adminMsgs: []
-    };
-
-    users[id].orders.push(order);
+      createdAt: Date.now()
+    });
     saveAll();
     delete sessions[id];
     return showMenu(id);
@@ -261,6 +259,12 @@ bot.on('callback_query', async q => {
 /* ================= USER INPUT ================= */
 bot.on('message', msg => {
   const id = msg.chat.id;
+
+  // Delete ALL user messages after seen (non-admin)
+  if (!ADMIN_IDS.includes(id) && !msg.from.is_bot) {
+    setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
+  }
+
   const s = sessions[id];
   if (!s || s.step !== 'amount') return;
 
