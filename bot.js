@@ -360,6 +360,52 @@ bot.onText(/\/unban (.+)/, (msg, match) => {
   bot.sendMessage(id, `✅ Unbanned [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
 });
 
+// ================= /resetweekly COMMAND WITH CONFIRMATION =================
+bot.onText(/\/resetweekly/, async (msg) => {
+  const chatId = msg.chat.id;
+  if (!ADMIN_IDS.includes(chatId)) return;
+
+  const sentMsg = await bot.sendMessage(chatId, '⚠️ Are you sure you want to reset *weekly XP* for all users?', {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '✅ Confirm', callback_data: 'resetweekly_confirm' },
+          { text: '❌ Cancel', callback_data: 'resetweekly_cancel' }
+        ]
+      ]
+    }
+  });
+});
+
+// ================= INLINE BUTTON HANDLER FOR /resetweekly =================
+bot.on('callback_query', async (q) => {
+  const chatId = q.message.chat.id;
+  const data = q.data;
+
+  if (!ADMIN_IDS.includes(chatId)) return;
+  await bot.answerCallbackQuery(q.id);
+
+  if (data === 'resetweekly_confirm') {
+    // Reset weekly XP
+    for (const u of Object.values(users)) u.weeklyXp = 0;
+    meta.weeklyReset = Date.now();
+    saveAll();
+
+    bot.editMessageText('✅ Weekly XP has been reset for all users.', {
+      chat_id: chatId,
+      message_id: q.message.message_id
+    });
+  }
+
+  if (data === 'resetweekly_cancel') {
+    bot.editMessageText('❌ Weekly XP reset canceled.', {
+      chat_id: chatId,
+      message_id: q.message.message_id
+    });
+  }
+});
+
 // ================= /rank COMMAND (with XP bars) =================
 bot.onText(/\/rank(?:\s+@?(\w+))?/, (msg, match) => {
   const chatId = msg.chat.id;
