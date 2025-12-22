@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – RELOAD FIX + LEADERBOARD PAGING) ===
+// === V1LE FARM BOT (FINAL – CLEAN MAIN MENU + LEADERBOARD PAGING) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -72,7 +72,7 @@ const PRODUCTS = {
 const ASCII_MAIN = '*V1LE FARM*';
 const sessions = {};
 
-// Delete old menu
+// Delete old main menu
 async function deleteOldMenu(id) {
   if (sessions[id]?.menuId) {
     try { await bot.deleteMessage(id, sessions[id].menuId); } catch {}
@@ -80,7 +80,7 @@ async function deleteOldMenu(id) {
   }
 }
 
-// Send new menu
+// Send new main menu
 async function sendMainMenu(id, lbPage = 0) {
   ensureUser(id);
   const u = users[id];
@@ -104,17 +104,19 @@ async function sendMainMenu(id, lbPage = 0) {
     lbText += `#${lbPage * lbSize + i + 1} @${u.username || id} — Lv ${u.level} — XP ${u.weeklyXp}\n`;
   });
 
-  // Buttons
-  const kb = [
-    ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }])
-  ];
+  // Product buttons
+  const kb = Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]);
 
+  // Leaderboard navigation
   const lbButtons = [];
   if (lbPage > 0) lbButtons.push({ text: '⬅ Prev', callback_data: `lb_${lbPage-1}` });
   if (lbPage < lbPageCount - 1) lbButtons.push({ text: '➡ Next', callback_data: `lb_${lbPage+1}` });
   if (lbButtons.length) kb.push(lbButtons);
 
+  // Reload button
   kb.push([{ text: '🔄 Reload', callback_data: 'reload' }]);
+
+  // Admin store buttons
   if (ADMIN_IDS.includes(id)) {
     kb.push([{
       text: meta.storeOpen ? '🔴 Close Store' : '🟢 Open Store',
@@ -202,16 +204,17 @@ bot.on('callback_query', async q => {
   u.lastClick = now;
   await bot.answerCallbackQuery(q.id);
 
+  // Main menu actions
   if (q.data === 'reload') return sendMainMenu(id);
   if (q.data.startsWith('lb_')) return sendMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
-
   if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return sendMainMenu(id);}
   if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return sendMainMenu(id);}
-  
+
+  // Product selection
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store closed', show_alert: true });
-    if (u.productLockUntil > now) return bot.answerCallbackQuery(q.id, { text: `⏳ Wait ${Math.ceil((u.productLockUntil - now)/1000)}s`, show_alert: true });
-    if (now - u.lastProductClick < 1500) { u.productLockUntil = now+30000; saveAll(); return bot.answerCallbackQuery(q.id,{text:'🚫 Product buttons locked 30s (spam)',show_alert:true});}
+    if (u.productLockUntil > now) return bot.answerCallbackQuery(q.id, { text: `⏳ Wait ${Math.ceil((u.productLockUntil-now)/1000)}s`, show_alert:true });
+    if (now - u.lastProductClick < 1500) { u.productLockUntil = now+30000; saveAll(); return bot.answerCallbackQuery(q.id,{text:'🚫 Product buttons locked 30s',show_alert:true}); }
 
     u.lastProductClick = now;
     s.product = q.data.replace('product_', '');
@@ -219,11 +222,13 @@ bot.on('callback_query', async q => {
     return sendOrEdit(id, `${ASCII_MAIN}\n✏️ Send grams or $ amount`);
   }
 
+  // Confirm order
   if (q.data === 'confirm') {
     if (!s.product || !s.grams) return;
     const order = { product: s.product, grams: s.grams, cash: s.cash, status:'⏳ Pending', pendingXP: Math.floor(2+s.cash*0.5), adminMsgs:[] };
     users[id].orders.push(order);
     saveAll();
+
     for (const admin of ADMIN_IDS) {
       const m = await bot.sendMessage(admin,
 `🧾 NEW ORDER
@@ -233,10 +238,12 @@ Status: ⏳ Pending`,
 { reply_markup:{inline_keyboard:[[{text:'✅ Accept',callback_data:`admin_accept_${id}_${users[id].orders.length-1}`},{text:'❌ Reject',callback_data:`admin_reject_${id}_${users[id].orders.length-1}` }]]} });
       order.adminMsgs.push({admin,msgId:m.message_id});
     }
+
     delete s.step; delete s.product; delete s.grams; delete s.cash;
     return sendMainMenu(id);
   }
 
+  // Admin order actions
   if (q.data.startsWith('admin_')) {
     const [, act, uid, idx] = q.data.split('_');
     const userId = Number(uid);
@@ -288,3 +295,14 @@ bot.on('message', async msg => {
 💲 $${cash}`,
 { reply_markup:{ inline_keyboard:[[{text:'✅ Confirm',callback_data:'confirm'}],[{text:'🏠 Back',callback_data:'reload'}]] } });
 });
+
+// Helper: send or edit
+async function sendOrEdit(id, text, opt={}) {
+  const mid = sessions[id]?.menuId;
+  if(mid){
+    try { await bot.editMessageText(text, { chat_id:id,message_id:mid,...opt }); return; } catch { sessions[id].menuId=null; }
+  }
+  const m = await bot.sendMessage(id,text,opt);
+  if(!sessions[id]) sessions[id]={};
+  sessions[id].menuId = m.message_id;
+}
