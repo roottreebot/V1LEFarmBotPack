@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – MOBILE FRIENDLY, FULL FEATURES, 2 PENDING ORDERS + /stats LAST 5 ORDERS, ADMIN EDIT SHARED) ===
+// === V1LE FARM BOT (FINAL – LIVE UPDATES, ADMIN ORDER EDIT FOR ALL, /stats, LAST 5 ORDERS) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -62,6 +62,7 @@ function giveXP(id, xp) {
   }
 }
 
+// XP bar helper
 function xpBar(xp, lvl) {
   const max = lvl * 5;
   const fill = Math.floor((xp / max) * 10);
@@ -104,9 +105,7 @@ function getLeaderboard(page = 0) {
     .filter(([, u]) => !u.banned)
     .sort((a, b) => b[1].weeklyXp - a[1].weeklyXp);
 
-  const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
-
   let text = `*📊 Weekly Leaderboard*\n\n`;
   slice.forEach(([id, u], i) => {
     text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
@@ -150,7 +149,7 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const orders = u.orders.length
     ? u.orders.map(o =>
-        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
+        `${o.status === '✅ Accepted' ? '🟢' : o.status === '❌ Rejected' ? '🔴' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
@@ -198,12 +197,8 @@ bot.on('callback_query', async q => {
   if (q.data === 'reload') return showMainMenu(id);
   if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
 
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true; saveAll(); return showMainMenu(id);
-  }
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false; saveAll(); return showMainMenu(id);
-  }
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return showMainMenu(id); }
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id); }
 
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
@@ -273,7 +268,7 @@ Status: ⚪ Pending`,
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
 
       meta.totalMoney += order.cash;
       meta.totalOrders++;
@@ -287,11 +282,10 @@ Status: ⚪ Pending`,
       if (meta.lastOrders.length > 5) meta.lastOrders = meta.lastOrders.slice(-5);
       saveAll();
     } else {
-      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
       users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
-    // Edit message for all admins
     const adminText = `🧾 *ORDER UPDATED*
 User: @${users[userId].username || userId}
 Product: ${order.product}
@@ -299,11 +293,14 @@ Grams: ${order.grams}g
 Price: $${order.cash}
 Status: ${order.status}`;
 
+    // Edit for all admins
     order.adminMsgs.forEach(({ admin, msgId }) => {
       bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
     });
 
-    return showMainMenu(userId);
+    // Update main menu live
+    showMainMenu(userId);
+    return;
   }
 
   // ================= STATS INLINE BUTTONS =================
