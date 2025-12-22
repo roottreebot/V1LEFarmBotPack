@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – BAN/UNBAN + LAST 5 ORDERS + IMPORT/EXPORT FIXED) ===
+// === V1LE FARM BOT (FINAL – BAN/UNBAN + LAST 5 ORDERS + LEADERBOARD RESET) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -97,7 +97,7 @@ function leaderboard() {
 
   let t = '*LEADERBOARD*\n';
   list.forEach(([id, u], i) => {
-    t += `#${i + 1} @${u.username || id} — ${u.weeklyXp}XP\n`;
+    t += `#${i + 1} @${u.username || id} — Lv ${u.level} — XP ${u.weeklyXp}\n`;
   });
   return t;
 }
@@ -132,7 +132,7 @@ async function showMainMenu(id) {
 ${meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed'}
 
 🎚 Level ${u.level}
-📊 ${xpBar(u.xp, u.level)}
+📊 XP: ${xpBar(u.xp, u.level)}
 
 📦 Last 5 Orders
 ${orders}
@@ -145,21 +145,29 @@ ${leaderboard()}`,
 // ================= START =================
 bot.onText(/\/start|\/help/, m => showMainMenu(m.chat.id));
 
+// ================= WEEKLY RESET =================
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+setInterval(() => {
+  if (Date.now() - meta.weeklyReset >= WEEK_MS) {
+    for (const id in users) users[id].weeklyXp = 0;
+    meta.weeklyReset = Date.now();
+    saveAll();
+    console.log('✅ Weekly leaderboard reset!');
+  }
+}, 60 * 60 * 1000);
+
 // ================= IMPORT / EXPORT =================
 bot.onText(/\/exportdb/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
-  const data = { users, meta };
   const file = `backup_${Date.now()}.json`;
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  fs.writeFileSync(file, JSON.stringify({ users, meta }, null, 2));
   bot.sendDocument(id, file).then(() => fs.unlinkSync(file));
 });
 
 bot.onText(/\/importdb/, msg => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
-
   sessions[id] = { waitingImport: true };
   bot.sendMessage(id, '📥 Send the backup JSON file to import.');
 });
@@ -172,13 +180,11 @@ bot.onText(/\/(ban|unban)\s+(.+)/, (msg, match) => {
   const action = match[1];
   const target = match[2].trim();
   let uid = Number(target);
-
   if (isNaN(uid)) {
     uid = Object.keys(users).find(
       k => users[k].username?.toLowerCase() === target.replace('@', '').toLowerCase()
     );
   }
-
   if (!uid || !users[uid]) return bot.sendMessage(id, '❌ User not found');
 
   users[uid].banned = action === 'ban';
@@ -199,28 +205,13 @@ bot.on('callback_query', async q => {
   await bot.answerCallbackQuery(q.id);
 
   if (q.data === 'reload') return showMainMenu(id);
-
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true; saveAll(); return showMainMenu(id);
-  }
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false; saveAll(); return showMainMenu(id);
-  }
-
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return showMainMenu(id);}
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id);}
   if (q.data.startsWith('product_')) {
-    if (!meta.storeOpen) {
-      return bot.answerCallbackQuery(q.id, { text: '🛑 Store closed', show_alert: true });
-    }
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store closed', show_alert: true });
 
-    if (u.productLockUntil > now) {
-      return bot.answerCallbackQuery(q.id, { text: `⏳ Wait ${Math.ceil((u.productLockUntil - now)/1000)}s`, show_alert: true });
-    }
-
-    if (now - u.lastProductClick < 1500) {
-      u.productLockUntil = now + 30000;
-      saveAll();
-      return bot.answerCallbackQuery(q.id, { text: '🚫 Product buttons locked 30s (spam)', show_alert: true });
-    }
+    if (u.productLockUntil > now) return bot.answerCallbackQuery(q.id, { text: `⏳ Wait ${Math.ceil((u.productLockUntil - now)/1000)}s`, show_alert: true });
+    if (now - u.lastProductClick < 1500) { u.productLockUntil = now+30000; saveAll(); return bot.answerCallbackQuery(q.id,{text:'🚫 Product buttons locked 30s (spam)',show_alert:true});}
 
     u.lastProductClick = now;
     s.product = q.data.replace('product_', '');
@@ -230,40 +221,19 @@ bot.on('callback_query', async q => {
 
   if (q.data === 'confirm') {
     if (!s.product || !s.grams) return;
-
-    const order = {
-      product: s.product,
-      grams: s.grams,
-      cash: s.cash,
-      status: '⏳ Pending',
-      pendingXP: Math.floor(2 + s.cash * 0.5),
-      adminMsgs: []
-    };
-
+    const order = { product: s.product, grams: s.grams, cash: s.cash, status:'⏳ Pending', pendingXP: Math.floor(2+s.cash*0.5), adminMsgs:[] };
     users[id].orders.push(order);
     saveAll();
-
     for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(
-        admin,
+      const m = await bot.sendMessage(admin,
 `🧾 NEW ORDER
 @${u.username || id}
 ${order.product} — ${order.grams}g — $${order.cash}
 Status: ⏳ Pending`,
-{
-  reply_markup: { inline_keyboard: [[
-    { text: '✅ Accept', callback_data: `admin_accept_${id}_${users[id].orders.length - 1}` },
-    { text: '❌ Reject', callback_data: `admin_reject_${id}_${users[id].orders.length - 1}` }
-  ]] }
-});
-      order.adminMsgs.push({ admin, msgId: m.message_id });
+{ reply_markup:{inline_keyboard:[[{text:'✅ Accept',callback_data:`admin_accept_${id}_${users[id].orders.length-1}`},{text:'❌ Reject',callback_data:`admin_reject_${id}_${users[id].orders.length-1}` }]]} });
+      order.adminMsgs.push({admin,msgId:m.message_id});
     }
-
-    delete s.step;
-    delete s.product;
-    delete s.grams;
-    delete s.cash;
-
+    delete s.step; delete s.product; delete s.grams; delete s.cash;
     return showMainMenu(id);
   }
 
@@ -272,84 +242,49 @@ Status: ⏳ Pending`,
     const userId = Number(uid);
     const order = users[userId]?.orders[idx];
     if (!order || order.status !== '⏳ Pending') return;
+    order.status = act==='accept'?'✅ Accepted':'❌ Rejected';
+    if (act==='accept') giveXP(userId, order.pendingXP);
 
-    order.status = act === 'accept' ? '✅ Accepted' : '❌ Rejected';
-    if (act === 'accept') giveXP(userId, order.pendingXP);
-
-    const finalText =
-`🧾 ORDER ${order.status}
-@${users[userId].username || userId}
-${order.product} — ${order.grams}g — $${order.cash}`;
-
-    for (const { admin, msgId } of order.adminMsgs) {
-      bot.editMessageText(finalText, { chat_id: admin, message_id: msgId }).catch(() => {});
-    }
-
-    saveAll();
-    return showMainMenu(userId);
+    const finalText = `🧾 ORDER ${order.status}\n@${users[userId].username || userId}\n${order.product} — ${order.grams}g — $${order.cash}`;
+    for(const {admin,msgId} of order.adminMsgs) bot.editMessageText(finalText,{chat_id:admin,message_id:msgId}).catch(()=>{});
+    saveAll(); return showMainMenu(userId);
   }
 });
 
 // ================= USER INPUT + IMPORT FILE =================
 bot.on('message', async msg => {
   const id = msg.chat.id;
-  ensureUser(id, msg.from.username);
-
-  if (!msg.from.is_bot) setTimeout(() => bot.deleteMessage(id, msg.message_id).catch(() => {}), 2000);
-
+  ensureUser(id,msg.from.username);
+  if (!msg.from.is_bot) setTimeout(()=>bot.deleteMessage(id,msg.message_id).catch(()=>{}),2000);
   const s = sessions[id];
 
-  // ===== IMPORT FILE HANDLER =====
+  // Import handler
   if (s?.waitingImport && msg.document) {
     const file = await bot.downloadFile(msg.document.file_id, '.');
     try {
       const data = JSON.parse(fs.readFileSync(file));
-      if (!data.users || !data.meta) throw 'Invalid backup';
-
-      users = data.users;
-      meta = data.meta;
-      saveAll();
-
-      bot.sendMessage(id, '✅ Database imported successfully');
-    } catch {
-      bot.sendMessage(id, '❌ Invalid backup file');
-    } finally {
-      delete sessions[id].waitingImport;
-      fs.unlinkSync(file);
-      showMainMenu(id);
-    }
+      if(!data.users || !data.meta) throw 'Invalid';
+      users = data.users; meta = data.meta; saveAll();
+      bot.sendMessage(id,'✅ Database imported');
+    } catch { bot.sendMessage(id,'❌ Invalid backup'); }
+    finally { delete sessions[id].waitingImport; fs.unlinkSync(file); showMainMenu(id); }
     return;
   }
 
-  if (!s || s.step !== 'amount') return;
+  if(!s || s.step!=='amount') return;
 
   const price = PRODUCTS[s.product].price;
   let grams, cash;
+  if(msg.text.startsWith('$')) { cash=parseFloat(msg.text.slice(1)); grams=+(cash/price).toFixed(1); }
+  else { grams=Math.round(parseFloat(msg.text)*2)/2; cash=+(grams*price).toFixed(2); }
+  if(!grams||grams<2) return;
 
-  if (msg.text.startsWith('$')) {
-    cash = parseFloat(msg.text.slice(1));
-    grams = +(cash / price).toFixed(1);
-  } else {
-    grams = Math.round(parseFloat(msg.text) * 2) / 2;
-    cash = +(grams * price).toFixed(2);
-  }
-  if (!grams || grams < 2) return;
-
-  s.grams = grams;
-  s.cash = cash;
-
+  s.grams = grams; s.cash = cash;
   sendOrEdit(id,
 `${ASCII_MAIN}
 🧾 Order Summary
 🌿 ${s.product}
 ⚖️ ${grams}g
 💲 $${cash}`,
-{
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: '✅ Confirm', callback_data: 'confirm' }],
-      [{ text: '🏠 Back', callback_data: 'reload' }]
-    ]
-  }
-});
+{ reply_markup:{ inline_keyboard:[[{text:'✅ Confirm',callback_data:'confirm'}],[{text:'🏠 Back',callback_data:'reload'}]] } });
 });
