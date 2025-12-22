@@ -1,4 +1,4 @@
-// === V1LE FARM BOT (FINAL – LIVE MAIN MENU + FULL FEATURES) ===
+// === V1LE FARM BOT (FINAL – STABLE /stats + LIVE MENU + FULL FEATURES) ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 
@@ -21,12 +21,11 @@ const META_FILE = 'meta.json';
 let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
-  : {
-      weeklyReset: Date.now(),
-      storeOpen: true,
-      totalMoney: 0,
-      totalOrders: 0
-    };
+  : { weeklyReset: Date.now(), storeOpen: true, totalMoney: 0, totalOrders: 0 };
+
+// Ensure totalMoney and totalOrders exist
+meta.totalMoney = meta.totalMoney || 0;
+meta.totalOrders = meta.totalOrders || 0;
 
 function saveAll() {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
@@ -107,7 +106,6 @@ function getLeaderboard(page = 0) {
     .filter(([, u]) => !u.banned)
     .sort((a, b) => b[1].weeklyXp - a[1].weeklyXp);
 
-  const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
   let text = `*📊 Weekly Leaderboard*\n\n`;
@@ -294,13 +292,23 @@ Grams: ${order.grams}g
 Price: $${order.cash}
 Status: ${order.status}`;
 
-    // edit for all admins
+    // Edit recipe/order for all admins
     for (const { admin, msgId } of order.adminMsgs) {
       bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
     }
 
     saveAll();
     showMainMenu(userId);
+  }
+
+  if (q.data === 'reset_money' && ADMIN_IDS.includes(id)) {
+    meta.totalMoney = 0;
+    meta.totalOrders = 0;
+    saveAll();
+    bot.editMessageText(
+      `💰 Total Money Earned: $${meta.totalMoney.toFixed(2)}\n📦 Total Orders: ${meta.totalOrders}`,
+      { chat_id: id, message_id: q.message.message_id }
+    ).catch(()=>{});
   }
 });
 
@@ -393,6 +401,9 @@ bot.onText(/\/importdb/, msg => {
           const data = JSON.parse(fs.readFileSync(path));
           users = data.users||{};
           meta = data.meta||meta;
+          // ensure numbers
+          meta.totalMoney = meta.totalMoney || 0;
+          meta.totalOrders = meta.totalOrders || 0;
           saveAll();
           bot.sendMessage(id,'✅ Database imported successfully');
         }catch{
@@ -403,32 +414,4 @@ bot.onText(/\/importdb/, msg => {
     };
     bot.on('message',listener);
   });
-});
-
-// ================= STATS COMMAND =================
-bot.onText(/\/stats/, msg => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
-  bot.sendMessage(id,
-`💰 Total Money Earned: $${meta.totalMoney.toFixed(2)}
-📦 Total Orders: ${meta.totalOrders}`, {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔄 Reset Money', callback_data: 'reset_money' }]
-      ]
-    }
-  });
-});
-
-bot.on('callback_query', q => {
-  const id = q.message.chat.id;
-  if (q.data === 'reset_money' && ADMIN_IDS.includes(id)) {
-    meta.totalMoney = 0;
-    meta.totalOrders = 0;
-    saveAll();
-    bot.editMessageText(
-      `💰 Total Money Earned: $${meta.totalMoney.toFixed(2)}\n📦 Total Orders: ${meta.totalOrders}`,
-      { chat_id: id, message_id: q.message.message_id }
-    ).catch(()=>{});
-  }
 });
