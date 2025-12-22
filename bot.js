@@ -360,6 +360,70 @@ bot.onText(/\/unban (.+)/, (msg, match) => {
   bot.sendMessage(id, `✅ Unbanned [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
 });
 
+// ================= /rank COMMAND (with XP bars) =================
+bot.onText(/\/rank(?:\s+@?(\w+))?/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const fromId = msg.from.id;
+  ensureUser(fromId, msg.from.username);
+
+  const targetUsername = match[1]?.toLowerCase();
+
+  // XP bar helper (same as main menu)
+  function xpBar(xp, lvl) {
+    const max = lvl * 5;
+    const fill = Math.floor((xp / max) * 10);
+    return '🟩'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
+  }
+
+  if (targetUsername) {
+    // Compare with specific username
+    const targetId = Object.keys(users).find(
+      id => users[id].username?.toLowerCase() === targetUsername
+    );
+
+    if (!targetId || !users[targetId]) {
+      return bot.sendMessage(chatId, `❌ User @${targetUsername} not found`);
+    }
+
+    const u1 = users[fromId];
+    const u2 = users[targetId];
+
+    let comparison = '';
+    if (u1.level > u2.level) comparison = '💪 You are higher level than them!';
+    else if (u1.level < u2.level) comparison = '⚡ They are higher level than you!';
+    else comparison = '🤝 You are the same level!';
+
+    const text = `📊 *Rank Comparison*
+
+You: Lv *${u1.level}* — XP ${xpBar(u1.xp, u1.level)} — ChatID: \`${fromId}\`
+@${users[targetId].username}: Lv *${u2.level}* — XP ${xpBar(u2.xp, u2.level)} — ChatID: \`${targetId}\`
+
+${comparison}`;
+
+    return bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+  } else {
+    // Compare to top 3 users
+    const u = users[fromId];
+    const topUsers = Object.entries(users)
+      .filter(([id, user]) => !user.banned)
+      .sort((a, b) => b[1].level - a[1].level || b[1].xp - a[1].xp)
+      .slice(0, 3);
+
+    let text = `📊 *Top 3 Users vs You*\n\nYou: Lv *${u.level}* — XP ${xpBar(u.xp, u.level)} — ChatID: \`${fromId}\`\n\n`;
+
+    topUsers.forEach(([id, user], i) => {
+      let cmp = '';
+      if (u.level > user.level) cmp = '💪 You are higher level!';
+      else if (u.level < user.level) cmp = '⚡ They are higher level!';
+      else cmp = '🤝 Same level!';
+
+      text += `#${i + 1} — @${user.username || id}: Lv *${user.level}* — XP ${xpBar(user.xp, user.level)} — ChatID: \`${id}\` — ${cmp}\n`;
+    });
+
+    bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+  }
+});
+
 // ================= BROADCAST =================
 bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   const adminId = msg.chat.id;
