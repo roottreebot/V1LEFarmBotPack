@@ -38,7 +38,13 @@ function ensureUser(id, username) {
       orders: [],
       banned: false,
       username: username || '',
-      lastOrderAt: 0
+      lastOrderAt: 0,
+
+      // 🔥 DAILY SYSTEM
+      lastDaily: 0,
+      dailyStreak: 0,
+
+      warns: []
     };
   }
   if (username) users[id].username = username;
@@ -1080,6 +1086,62 @@ ${warn.reason}
 📊 Total warns: ${users[targetId].warns.length}
 ${dmOk ? '📨 User notified.' : '⚠️ DM failed (user blocked bot).'}`,
   { parse_mode: 'Markdown' }
+  );
+});
+
+// ================= /daily WITH STREAK =================
+bot.onText(/\/daily/, (msg) => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+
+  const u = users[id];
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  // ⏳ Cooldown check
+  if (now - u.lastDaily < DAY) {
+    const remaining = DAY - (now - u.lastDaily);
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+
+    return bot.sendMessage(
+      id,
+      `⏳ *Daily already claimed*\n\nCome back in *${hours}h ${mins}m*`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // 🔁 Streak logic
+  if (now - u.lastDaily <= DAY * 2) {
+    u.dailyStreak += 1; // streak continues
+  } else {
+    u.dailyStreak = 1; // streak reset
+  }
+
+  // 🎁 Reward calculation
+  const baseXP = 10;
+  const streakBonus = Math.min(u.dailyStreak * 2, 30); // cap bonus
+  const totalXP = baseXP + streakBonus;
+
+  giveXP(id, totalXP);
+
+  u.lastDaily = now;
+  saveAll();
+
+  // 🧾 Message
+  bot.sendMessage(
+    id,
+`🎁 *Daily Reward Claimed!*
+
+🔥 Streak: *${u.dailyStreak} day${u.dailyStreak > 1 ? 's' : ''}*
+✨ Base XP: *+${baseXP}*
+🚀 Streak Bonus: *+${streakBonus}*
+📊 Total Gained: *+${totalXP} XP*
+
+🏆 Level: *${u.level}*
+
+Come back tomorrow to keep the streak alive!`,
+    { parse_mode: 'Markdown' }
   );
 });
 
