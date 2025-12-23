@@ -999,6 +999,69 @@ bot.onText(/\/clear(?:\s+(\d+))?/, async (msg, match) => {
   );
 });
 
+// ================= /warn COMMAND =================
+bot.onText(/\/warn\s+@(\w+)\s+([\s\S]+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const adminId = msg.from.id;
+
+  if (!ADMIN_IDS.includes(adminId)) {
+    return bot.sendMessage(chatId, '❌ Admins only.');
+  }
+
+  const username = match[1].toLowerCase();
+  const reason = match[2].trim();
+
+  const targetId = Object.keys(users).find(
+    id => users[id].username?.toLowerCase() === username
+  );
+
+  if (!targetId) {
+    return bot.sendMessage(chatId, `❌ User @${username} not found.`);
+  }
+
+  ensureUser(targetId, users[targetId].username);
+
+  const warning = {
+    reason,
+    admin: msg.from.username || msg.from.id,
+    date: new Date().toISOString()
+  };
+
+  users[targetId].warns.push(warning);
+  saveAll();
+
+  // ===== USER DM MESSAGE =====
+  const dmText =
+`⚠️ *You Have Been Warned*
+
+👤 User: @${users[targetId].username}
+🛡️ Issued by: @${msg.from.username || 'Admin'}
+🕒 Date: ${new Date().toLocaleString()}
+
+📄 *Reason*
+${reason}
+
+📌 Please follow the rules to avoid further action.
+Repeated warnings may result in restrictions or a ban.`;
+
+  let dmSent = true;
+
+  try {
+    await bot.sendMessage(targetId, dmText, { parse_mode: 'Markdown' });
+  } catch {
+    dmSent = false;
+  }
+
+  // ===== ADMIN CONFIRMATION =====
+  bot.sendMessage(chatId,
+    `✅ *Warning issued to* @${users[targetId].username}\n` +
+    `📄 Reason: ${reason}\n` +
+    `📊 Total warnings: ${users[targetId].warns.length}\n` +
+    `${dmSent ? '📨 User notified via DM.' : '⚠️ Could not DM user.'}`,
+    { parse_mode: 'Markdown' }
+  );
+});
+
 // ================= BROADCAST =================
 bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   const adminId = msg.chat.id;
