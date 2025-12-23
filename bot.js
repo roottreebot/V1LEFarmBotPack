@@ -513,6 +513,7 @@ bot.on('callback_query', async (q) => {
   }
 });
 
+// ================= /profile COMMAND =================
 async function generateProfileCard(user, tgUser, bot) {
   const width = 1080;
   const height = 1080;
@@ -606,7 +607,6 @@ async function generateProfileCard(user, tgUser, bot) {
   return canvas.toBuffer('image/png');
 }
 
-// ================= /profile COMMAND =================
 bot.onText(/\/profile(?:\s+@?(\w+))?/, async (msg, match) => {
   const chatId = msg.chat.id;
   const fromId = msg.from.id;
