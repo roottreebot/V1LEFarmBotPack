@@ -678,12 +678,8 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
-// ================= SHOP COMMAND =================
-bot.onText(/\/shop/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  // Ensure user exists
+// ================= SHOP PAGE FUNCTION =================
+function sendShopPage(chatId, userId, page = 1) {
   if (!db[userId]) db[userId] = { xp: 0, roles: [] };
   const userData = db[userId];
 
@@ -691,30 +687,34 @@ bot.onText(/\/shop/, async (msg) => {
   const roles = Object.entries(ROLE_SHOP);
   const totalPages = Math.ceil(roles.length / rolesPerPage);
 
-  let page = 1; // default first page
-  sendShopPage(chatId, userId, page);
+  const start = (page - 1) * rolesPerPage;
+  const pageRoles = roles.slice(start, start + rolesPerPage);
 
-  function sendShopPage(chatId, userId, page) {
-    const start = (page - 1) * rolesPerPage;
-    const pageRoles = roles.slice(start, start + rolesPerPage);
+  const text = pageRoles
+    .map(([role, info], i) => `${start + i + 1}. ${role} — ${info.price} XP`)
+    .join("\n");
 
-    const text = pageRoles
-      .map(([role, info], i) => `${start + i + 1}. ${role} — ${info.price} XP`)
-      .join("\n");
+  // Buy button for each role
+  const buttons = pageRoles.map(([role]) => [
+    { text: `Buy ${role}`, callback_data: `buy_${role}` },
+  ]);
 
-    const buttons = pageRoles.map(([role]) => [
-      { text: `Buy ${role}`, callback_data: `buy_${role}` },
-    ]);
+  // Navigation buttons
+  const navButtons = [];
+  if (page > 1) navButtons.push({ text: "⬅️ Prev", callback_data: `shop_${page - 1}` });
+  if (page < totalPages) navButtons.push({ text: "Next ➡️", callback_data: `shop_${page + 1}` });
+  if (navButtons.length) buttons.push(navButtons);
 
-    const navButtons = [];
-    if (page > 1) navButtons.push({ text: "⬅️ Prev", callback_data: `shop_${page - 1}` });
-    if (page < totalPages) navButtons.push({ text: "Next ➡️", callback_data: `shop_${page + 1}` });
-    if (navButtons.length) buttons.push(navButtons);
+  bot.sendMessage(chatId, `💼 Your XP: ${userData.xp}\n\n${text}`, {
+    reply_markup: { inline_keyboard: buttons },
+  });
+}
 
-    bot.sendMessage(chatId, `💼 Your XP: ${userData.xp}\n\n${text}`, {
-      reply_markup: { inline_keyboard: buttons },
-    });
-  }
+// ================= /shop COMMAND =================
+bot.onText(/\/shop/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  sendShopPage(chatId, userId, 1); // first page
 });
 
 // ================= CALLBACK HANDLER =================
@@ -726,6 +726,7 @@ bot.on("callback_query", async (query) => {
   if (!db[userId]) db[userId] = { xp: 0, roles: [] };
   const userData = db[userId];
 
+  // BUY ROLE
   if (data.startsWith("buy_")) {
     const roleName = data.slice(4);
 
@@ -748,9 +749,10 @@ bot.on("callback_query", async (query) => {
     return bot.answerCallbackQuery(query.id, { text: `✅ You bought ${roleName}!` });
   }
 
+  // NAVIGATION
   if (data.startsWith("shop_")) {
     const page = parseInt(data.split("_")[1]);
-    bot.deleteMessage(chatId, query.message.message_id);
+    bot.deleteMessage(chatId, query.message.message_id); // remove old page
     sendShopPage(chatId, userId, page);
   }
 });
