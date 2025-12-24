@@ -345,7 +345,63 @@ Status: ${order.status}`;
   }
 
   // ======== HANDLE SHOP PURCHASES ========
-bo
+bot.on('callback_query', (q) => {
+  const id = q.message.chat.id;
+  ensureUser(id, q.from.username);
+  const u = users[id];
+  const data = q.data;
+
+  // Only handle shop buttons
+  if (!data.startsWith('buy_')) return;
+
+  const itemKey = data.replace('buy_', '').replace(/_/g, ' ');
+  const item = SHOP_ITEMS[itemKey];
+  if (!item) return bot.answerCallbackQuery(q.id, { text: '❌ Item not found', show_alert: true });
+
+  // Check if already owned
+  const alreadyOwned = (item.type === 'badge' && u.badges.includes(itemKey)) || (item.type === 'rank' && u.rank === itemKey);
+
+  // Purchase logic
+  if (!alreadyOwned && u.xp >= item.price) {
+    u.xp -= item.price;
+    if (item.type === 'badge') {
+      u.badges.push(itemKey);
+      u.selectedBadge = itemKey; // auto-equip badge
+      bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
+    }
+    if (item.type === 'rank') {
+      u.rank = itemKey; // auto-equip rank
+      bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
+    }
+  } else if (alreadyOwned) {
+    // If already owned, equip it
+    if (item.type === 'badge') {
+      u.selectedBadge = itemKey;
+      bot.answerCallbackQuery(q.id, { text: `🎨 Equipped ${itemKey}`, show_alert: true });
+    }
+    if (item.type === 'rank') {
+      u.rank = itemKey;
+      bot.answerCallbackQuery(q.id, { text: `🏆 Equipped ${itemKey}`, show_alert: true });
+    }
+  } else {
+    // Not enough XP
+    return bot.answerCallbackQuery(q.id, { text: `❌ Not enough XP!`, show_alert: true });
+  }
+
+  saveAll(); // Save the changes
+
+  // Refresh shop display
+  const kb = Object.keys(SHOP_ITEMS).map(item => {
+    const owned = (u.badges.includes(item) || u.rank === item) ? '✅' : '';
+    return [{ text: `${item} — ${SHOP_ITEMS[item].price} XP ${owned}`, callback_data: `buy_${item.replace(/ /g, '_')}` }];
+  });
+
+  bot.editMessageText(`🛒 *Shop*\nYour XP: *${u.xp}*\n\nSelect an item to purchase or equip:`, {
+    chat_id: id,
+    message_id: q.message.message_id,
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: kb }
+  });
 });
 
 // ================= USER INPUT =================
