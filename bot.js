@@ -302,29 +302,11 @@ bot.on('callback_query', async q => {
     meta.storeOpen = false; saveAll(); return showMainMenu(id);
   }
 
-if (q.data.startsWith('buyrole_')) {
-  const userId = q.from.id;
-  ensureUser(userId, q.from.username);
-  const u = users[userId];
-
-  const roleName = q.data.replace('buyrole_', '');
-  const roleData = ROLE_SHOP[roleName];
-  if (!roleData) return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
-
-  if (u.roles.includes(roleName)) {
-    return bot.answerCallbackQuery(q.id, { text: `⚠️ You already own ${roleName}`, show_alert: true });
-  }
-
-  if (u.xp < roleData.price) {
-    return bot.answerCallbackQuery(q.id, { text: `❌ Not enough XP (${roleData.price} XP needed)`, show_alert: true });
-  }
-
-  u.roles.push(roleName);
-  u.xp -= roleData.price;
-  saveAll();
-
-  bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${roleName}!` });
-  bot.sendMessage(userId, `🎉 You successfully bought *${roleName}* for *${roleData.price} XP*`, { parse_mode: 'Markdown' });
+if (q.data.startsWith('shop_page_')) {
+  const page = Number(q.data.split('_')[2]);
+  const id = q.message.chat.id;
+  bot.deleteMessage(id, q.message.message_id).catch(() => {});
+  showShop(id, page); // show the page requested
 }
   
   if (q.data.startsWith('product_')) {
@@ -707,6 +689,13 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
   } catch (err) {}
 
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
+});
+
+// ================= /shop COMMAND LISTENER =================
+bot.onText(/\/shop/, (msg) => {
+  const chatId = msg.chat.id;
+  ensureUser(chatId, msg.from.username); // make sure the user exists
+  showShop(chatId, 0); // show the first page of the shop
 });
 
 // ================= /shop COMMAND =================
