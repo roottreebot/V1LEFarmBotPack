@@ -27,14 +27,6 @@ function spinReel() {
   return SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
 }
 
-// ======== SHOP ITEMS ========
-const SHOP_ITEMS = {
-  "Golden Crown": { price: 50, type: 'badge', description: "A shiny crown for your profile" },
-  "Silver Star": { price: 30, type: 'badge', description: "A silver star for your profile" },
-  "Diamond Rank": { price: 100, type: 'rank', description: "Special rank shown in main menu" },
-  "Elite Rank": { price: 70, type: 'rank', description: "Elite role for main menu" }
-};
-
 // ================= FILES =================
 const DB_FILE = 'users.json';
 const META_FILE = 'meta.json';
@@ -81,10 +73,6 @@ function ensureUser(id, username) {
     };
   }
   if (username) users[id].username = username;
-  // inside ensureUser(id, username)
-if (!users[id].badges) users[id].badges = [];         // list of unlocked badges
-if (!users[id].selectedBadge) users[id].selectedBadge = ''; // currently equipped badge
-if (!users[id].rank) users[id].rank = '';             // currently equipped rank
 }
 
 // ================= XP =================
@@ -218,22 +206,19 @@ async function showMainMenu(id, lbPage = 0) {
 
   const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
 
-  const badgeText = u.selectedBadge ? `🏅 Badge: ${u.selectedBadge}` : '';
-const rankText = u.rank ? `🎖 Rank: ${u.rank}` : '';
-
-await sendOrEdit(
-  id,
+  await sendOrEdit(
+    id,
 `${storeStatus}
 🎚 Level: *${u.level}*
 📊 XP: ${xpBar(u.xp, u.level)}
 ${streakText(u)}
-${badgeText} ${rankText}
 📦 *Your Orders* (last 5)
 ${orders}
 
 ${lb.text}`,
-  { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
-);
+    { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
+  );
+}
 
 // ================= START =================
 bot.onText(/\/start|\/help/, msg => showMainMenu(msg.chat.id, 0));
@@ -344,191 +329,7 @@ Status: ${order.status}`;
     return showMainMenu(userId);
   }
 
-  // ======== HANDLE SHOP PURCHASES ========
-bot.on('callback_query', (q) => {
-  const id = q.message.chat.id;
-  ensureUser(id, q.from.username);
-  const u = users[id];
-  const data = q.data;
 
-  // Only handle shop buttons
-  if (!data.startsWith('buy_')) return;
-
-  const itemKey = data.replace('buy_', '').replace(/_/g, ' ');
-  const item = SHOP_ITEMS[itemKey];
-  if (!item) return bot.answerCallbackQuery(q.id, { text: '❌ Item not found', show_alert: true });
-
-  // Check if already owned
-  const alreadyOwned = (item.type === 'badge' && u.badges.includes(itemKey)) || (item.type === 'rank' && u.rank === itemKey);
-// ================= CALLBACKS =================
-bot.on('callback_query', async q => {
-  const id = q.message.chat.id;
-  ensureUser(id, q.from.username);
-  const s = sessions[id] || (sessions[id] = {});
-  await bot.answerCallbackQuery(q.id).catch(() => {});
-  const u = users[id];
-  const data = q.data;
-
-  // ===== MAIN MENU / LEADERBOARD =====
-  if (data === 'reload') return showMainMenu(id);
-  if (data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(data.split('_')[1])));
-
-  // ===== STORE OPEN/CLOSE (ADMIN) =====
-  if (data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true; saveAll(); return showMainMenu(id);
-  }
-  if (data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false; saveAll(); return showMainMenu(id);
-  }
-
-  // ===== SHOP PRODUCT SELECTION =====
-  if (data.startsWith('product_')) {
-    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
-    if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
-    s.lastClick = Date.now();
-
-    const pendingCount = u.orders.filter(o => o.status === 'Pending').length;
-    if (pendingCount >= 2) return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
-
-    s.product = data.replace('product_', '');
-    s.step = 'amount';
-    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`);
-  }
-
-  // ===== CONFIRM ORDER =====
-  if (data === 'confirm_order') {
-    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
-
-    const xp = Math.floor(2 + s.cash * 0.5);
-    const order = {
-      product: s.product,
-      grams: s.grams,
-      cash: s.cash,
-      status: 'Pending',
-      pendingXP: xp,
-      adminMsgs: []
-    };
-
-    u.orders.push(order);
-    u.orders = u.orders.slice(-5);
-    saveAll();
-
-    for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(
-        admin,
-`🧾 *NEW ORDER*
-User: @${u.username || id}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ⚪ Pending`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [[
-              { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
-              { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
-            ]]
-          }
-        }
-      );
-      order.adminMsgs.push({ admin, msgId: m.message_id });
-    }
-
-    return showMainMenu(id);
-  }
-
-  // ===== ADMIN ORDER HANDLING =====
-  if (data.startsWith('admin_')) {
-    const [, action, uid, index] = data.split('_');
-    const userId = Number(uid);
-    const i = Number(index);
-    const order = users[userId]?.orders[i];
-    if (!order || order.status !== 'Pending') return;
-
-    order.status = action === 'accept' ? '✅ Accepted' : '❌ Rejected';
-
-    if (action === 'accept') {
-      giveXP(userId, order.pendingXP);
-      delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order has been accepted!')
-        .then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
-    } else {
-      bot.sendMessage(userId, '❌ Your order has been rejected!')
-        .then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 10000));
-      users[userId].orders = users[userId].orders.filter(o => o !== order);
-    }
-
-    const adminText = `🧾 *ORDER UPDATED*
-User: @${users[userId].username || userId}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ${order.status}`;
-
-    for (const { admin, msgId } of order.adminMsgs) {
-      bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
-    }
-
-    saveAll();
-    return showMainMenu(userId);
-  }
-
-  // ===== SHOP PURCHASES =====
-  if (data.startsWith('buy_')) {
-    const itemKey = data.replace('buy_', '').replace(/_/g, ' ');
-    const item = SHOP_ITEMS[itemKey];
-    if (!item) return bot.answerCallbackQuery(q.id, { text: '❌ Item not found', show_alert: true });
-
-    const alreadyOwned = (item.type === 'badge' && u.badges.includes(itemKey)) || (item.type === 'rank' && u.rank === itemKey);
-
-    if (!alreadyOwned && u.xp >= item.price) {
-      u.xp -= item.price;
-      if (item.type === 'badge') {
-        u.badges.push(itemKey);
-        u.selectedBadge = itemKey;
-        bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
-      }
-      if (item.type === 'rank') {
-        u.rank = itemKey;
-        bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
-      }
-    } else if (alreadyOwned) {
-      if (item.type === 'badge') {
-        u.selectedBadge = itemKey;
-        bot.answerCallbackQuery(q.id, { text: `🎨 Equipped ${itemKey}`, show_alert: true });
-      }
-      if (item.type === 'rank') {
-        u.rank = itemKey;
-        bot.answerCallbackQuery(q.id, { text: `🏆 Equipped ${itemKey}`, show_alert: true });
-      }
-    } else {
-      return bot.answerCallbackQuery(q.id, { text: '❌ Not enough XP!', show_alert: true });
-    }
-
-    saveAll();
-
-    // Refresh shop display
-    const kb = Object.keys(SHOP_ITEMS).map(i => {
-      const owned = (u.badges.includes(i) || u.rank === i) ? '✅' : '';
-      return [{ text: `${i} — ${SHOP_ITEMS[i].price} XP ${owned}`, callback_data: `buy_${i.replace(/ /g, '_')}` }];
-    });
-
-    return bot.editMessageText(`🛒 *Shop*\nYour XP: *${u.xp}*\n\nSelect an item to purchase or equip:`, {
-      chat_id: id,
-      message_id: q.message.message_id,
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: kb }
-    });
-  }
-});
-
-  bot.editMessageText(`🛒 *Shop*\nYour XP: *${u.xp}*\n\nSelect an item to purchase or equip:`, {
-    chat_id: id,
-    message_id: q.message.message_id,
-    parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: kb }
-  });
 });
 
 // ================= USER INPUT =================
@@ -575,63 +376,6 @@ bot.on('message', msg => {
       parse_mode: 'Markdown'
     }
   );
-});
-
-// ======== HANDLE SHOP PURCHASES ========
-bot.on('callback_query', (q) => {
-  const id = q.message.chat.id;
-  ensureUser(id, q.from.username);
-  const u = users[id];
-  const data = q.data;
-
-  if (!data.startsWith('buy_')) return;
-
-  const itemKey = data.replace('buy_', '').replace(/_/g,' ');
-  const item = SHOP_ITEMS[itemKey];
-  if (!item) return bot.answerCallbackQuery(q.id, { text: '❌ Item not found', show_alert: true });
-
-  // If already owned
-  if ((item.type === 'badge' && u.badges.includes(itemKey)) || (item.type === 'rank' && u.rank === itemKey)) {
-    return bot.answerCallbackQuery(q.id, { text: `✅ Already equipped!`, show_alert: true });
-  }
-
-  // Purchase
-  if (u.xp >= item.price && !(item.type === 'badge' && u.badges.includes(itemKey))) {
-    u.xp -= item.price;
-    if (item.type === 'badge') {
-      u.badges.push(itemKey);
-      u.selectedBadge = itemKey; // auto equip
-      bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
-    }
-    if (item.type === 'rank') {
-      u.rank = itemKey; // auto equip
-      bot.answerCallbackQuery(q.id, { text: `🎉 Purchased & equipped ${itemKey}`, show_alert: true });
-    }
-  } else if (item.type === 'badge' && u.badges.includes(itemKey)) {
-    // equip badge
-    u.selectedBadge = itemKey;
-    bot.answerCallbackQuery(q.id, { text: `🎨 Equipped ${itemKey}`, show_alert: true });
-  } else if (item.type === 'rank' && u.rank !== itemKey) {
-    u.rank = itemKey;
-    bot.answerCallbackQuery(q.id, { text: `🏆 Equipped ${itemKey}`, show_alert: true });
-  } else {
-    return bot.answerCallbackQuery(q.id, { text: `❌ Not enough XP!`, show_alert: true });
-  }
-
-  saveAll();
-
-  // Refresh shop
-  let kb = Object.keys(SHOP_ITEMS).map(item => {
-    const owned = (u.badges.includes(item) || u.rank === item) ? '✅' : '';
-    return [{ text: `${item} — ${SHOP_ITEMS[item].price} XP ${owned}`, callback_data: `buy_${item.replace(/ /g,'_')}` }];
-  });
-
-  bot.editMessageText(`🛒 *Shop*\nYour XP: *${u.xp}*\n\nSelect an item to purchase or equip:`, {
-    chat_id: id,
-    message_id: q.message.message_id,
-    parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: kb }
-  });
 });
 
 // ================= ADMIN COMMANDS =================
@@ -1083,24 +827,6 @@ bot.onText(/\/profile/, async (msg) => {
 
   // Fallback if no photo or error
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
-});
-
-// ======== /shop COMMAND ========
-bot.onText(/\/shop/, (msg) => {
-  const id = msg.chat.id;
-  ensureUser(id, msg.from.username);
-  const u = users[id];
-
-  // Build inline keyboard
-  let kb = Object.keys(SHOP_ITEMS).map(item => {
-    const owned = (u.badges.includes(item) || u.rank === item) ? '✅' : '';
-    return [{ text: `${item} — ${SHOP_ITEMS[item].price} XP ${owned}`, callback_data: `buy_${item.replace(/ /g,'_')}` }];
-  });
-
-  bot.sendMessage(id, `🛒 *Shop*\nYour XP: *${u.xp}*\n\nSelect an item to purchase or equip:`, {
-    parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: kb }
-  });
 });
 
 // ================= BLACKJACK WITH XP AS CURRENCY =================
