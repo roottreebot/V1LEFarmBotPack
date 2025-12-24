@@ -84,7 +84,7 @@ function xpBar(xp, lvl) {
 // ================= STREAK DISPLAY =================
 function streakText(u) {
   if (!u || !u.dailyStreak || u.dailyStreak < 1) {
-    return '🔥 Daily Streak: 0 days';
+    return '🔥 Daily Streak: 0 ';
   }
   return `🔥 Daily Streak: ${u.dailyStreak} day${u.dailyStreak === 1 ? '' : 's'}`;
 }
