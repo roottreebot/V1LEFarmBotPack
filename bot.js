@@ -242,9 +242,9 @@ async function showMainMenu(id, lbPage = 0) {
   await sendOrEdit(
     id,
 `${storeStatus}
+👑 Highest Role: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 XP: ${xpBar(u.xp, u.level)}
-👑 Highest Role: *${highestRole}*
 ${streakText(u)}
 📦 *Your Orders* (last 5)
 ${orders}
@@ -736,36 +736,61 @@ bot.onText(/\/shop/, (msg) => {
   bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
 });
 
-// ================= /buy =================
+// ================= /buy COMMAND =================
 bot.onText(/\/buy (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+
   ensureUser(userId, msg.from.username);
-
-  const roleName = match[1].trim();
-  const item = ROLE_SHOP[roleName];
-
-  if (!item) return bot.sendMessage(chatId, `❌ Role not found in shop.`);
-
   const user = users[userId];
 
-  // Initialize XP if missing
-  if (user.xp === undefined) user.xp = 0;
+  const input = match[1].trim().toLowerCase();
 
-  if (user.xp < item.price) {
-    return bot.sendMessage(chatId, `❌ You need *${item.price} XP* to buy ${roleName} — you have *${user.xp} XP*`, { parse_mode: "Markdown" });
+  // Find role (case-insensitive, emoji-safe, partial match)
+  const roleName = Object.keys(ROLE_SHOP).find(r =>
+    r.toLowerCase().includes(input)
+  );
+
+  if (!roleName) {
+    return bot.sendMessage(
+      chatId,
+      `❌ Role not found.\nUse /shop to see available roles.`
+    );
   }
 
-  // Deduct XP & store role
-  user.xp -= item.price;
+  const price = ROLE_SHOP[roleName].price;
+
+  if (user.xp < price) {
+    return bot.sendMessage(
+      chatId,
+      `❌ Not enough XP.\nYou need *${price} XP* but only have *${user.xp} XP*.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
   if (!user.roles) user.roles = [];
+
   if (user.roles.includes(roleName)) {
-    return bot.sendMessage(chatId, `⚠️ You already own *${roleName}*`, { parse_mode: "Markdown" });
+    return bot.sendMessage(
+      chatId,
+      `⚠️ You already own *${roleName}*.`,
+      { parse_mode: 'Markdown' }
+    );
   }
+
+  // Buy role
+  user.xp -= price;
   user.roles.push(roleName);
   saveAll();
 
-  bot.sendMessage(chatId, `✅ You bought *${roleName}*!`, { parse_mode: "Markdown" });
+  bot.sendMessage(
+    chatId,
+    `✅ Successfully purchased *${roleName}* for *${price} XP*!`,
+    { parse_mode: 'Markdown' }
+  );
+
+  // Optional: refresh menu after purchase
+  // showMainMenu(chatId);
 });
 
 // ================= /slots (ANIMATED + ULTRA) =================
