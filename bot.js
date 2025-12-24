@@ -714,49 +714,30 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
 });
 
 // ================= /shop COMMAND LISTENER =================
-bot.onText(/\/shop/, (msg) => {
-  const chatId = msg.chat.id;
-  ensureUser(chatId, msg.from.username); // make sure the user exists
-  showShop(chatId, 0); // show the first page of the shop
+const lastShopMessage = {}; // store last message_id per user
+
+bot.onText(/\/shop/, async msg => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+  const u = users[id];
+
+  const shopText = '🛒 *Shop Items*\n\n' + Object.entries(ROLE_SHOP).map(([r, v]) => `${r} - $${v.price}`).join('\n');
+
+  const opts = { parse_mode: 'Markdown', reply_markup: { inline_keyboard: buildShopKeyboard() } };
+
+  // If user already has a shop message, edit it instead of sending new
+  if (lastShopMessage[id]) {
+    try {
+      await bot.editMessageText(shopText, { chat_id: id, message_id: lastShopMessage[id], ...opts });
+      return;
+    } catch (e) {
+      // message might be deleted or expired, fallback to sending new
+    }
+  }
+
+  const sent = await bot.sendMessage(id, shopText, opts);
+  lastShopMessage[id] = sent.message_id;
 });
-
-// ================= /shop COMMAND LISTENER =================
-bot.onText(/\/shop/, (msg) => {
-  const chatId = msg.chat.id;
-  ensureUser(chatId, msg.from.username);
-  showShop(chatId, 0); // show the first page of the shop
-});
-
-const SHOP_PAGE_SIZE = 5;
-
-// Show shop page
-function showShop(chatId, page = 0) {
-  const allRoles = Object.entries(ROLE_SHOP);
-  const totalPages = Math.ceil(allRoles.length / SHOP_PAGE_SIZE) || 1;
-  page = Math.max(0, Math.min(page, totalPages - 1));
-
-  const slice = allRoles.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
-
-  let text = `🛒 *Role Shop*\n_Page ${page + 1}/${totalPages}_\n\n`;
-  const buttons = [];
-
-  slice.forEach(([name, { price }], i) => {
-    text += `${i + 1}. ${name} — ${price} XP\n`;
-    // Buy button
-    buttons.push([{ text: `💰 Buy ${name}`, callback_data: `buyrole_${name}` }]);
-  });
-
-  // Pagination buttons
-  const navButtons = [];
-  if (page > 0) navButtons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
-  if (page < totalPages - 1) navButtons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
-  if (navButtons.length) buttons.push(navButtons);
-
-  bot.sendMessage(chatId, text, {
-    parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: buttons }
-  });
-}
 
 // ================= /slots (ANIMATED + ULTRA) =================
 bot.onText(/\/slots (\d+)/, async (msg, match) => {
@@ -889,8 +870,8 @@ bot.onText(/\/profile/, async msg => {
 
   const highestRole = getHighestRole(u);
 
+  // Only a refresh button
   const kb = [
-    [{ text: '🎭 Change Role', callback_data: 'change_role' }],
     [{ text: '🔄 Refresh Profile', callback_data: 'reload_profile' }]
   ];
 
