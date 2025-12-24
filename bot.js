@@ -678,7 +678,7 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
-// ================= SHOP PAGE FUNCTION =================
+// ================= GLOBAL SHOP PAGE FUNCTION =================
 function sendShopPage(chatId, userId, page = 1) {
   if (!db[userId]) db[userId] = { xp: 0, roles: [] };
   const userData = db[userId];
@@ -694,31 +694,29 @@ function sendShopPage(chatId, userId, page = 1) {
     .map(([role, info], i) => `${start + i + 1}. ${role} — ${info.price} XP`)
     .join("\n");
 
-  // Buy button for each role
   const buttons = pageRoles.map(([role]) => [
-    { text: `Buy ${role}`, callback_data: `buy_${role}` },
+    { text: userData.roles.includes(role) ? `${role} ✅ Owned` : `Buy ${role}`, callback_data: `buy_${role}` }
   ]);
 
-  // Navigation buttons
   const navButtons = [];
   if (page > 1) navButtons.push({ text: "⬅️ Prev", callback_data: `shop_${page - 1}` });
   if (page < totalPages) navButtons.push({ text: "Next ➡️", callback_data: `shop_${page + 1}` });
   if (navButtons.length) buttons.push(navButtons);
 
   bot.sendMessage(chatId, `💼 Your XP: ${userData.xp}\n\n${text}`, {
-    reply_markup: { inline_keyboard: buttons },
+    reply_markup: { inline_keyboard: buttons }
   });
 }
 
 // ================= /shop COMMAND =================
-bot.onText(/\/shop/, async (msg) => {
+bot.onText(/\/shop/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  sendShopPage(chatId, userId, 1); // first page
+  sendShopPage(chatId, userId, 1); // start with page 1
 });
 
 // ================= CALLBACK HANDLER =================
-bot.on("callback_query", async (query) => {
+bot.on("callback_query", (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
   const data = query.data;
@@ -726,10 +724,8 @@ bot.on("callback_query", async (query) => {
   if (!db[userId]) db[userId] = { xp: 0, roles: [] };
   const userData = db[userId];
 
-  // BUY ROLE
   if (data.startsWith("buy_")) {
     const roleName = data.slice(4);
-
     if (!ROLE_SHOP[roleName]) return;
 
     if (userData.roles.includes(roleName)) {
@@ -749,7 +745,6 @@ bot.on("callback_query", async (query) => {
     return bot.answerCallbackQuery(query.id, { text: `✅ You bought ${roleName}!` });
   }
 
-  // NAVIGATION
   if (data.startsWith("shop_")) {
     const page = parseInt(data.split("_")[1]);
     bot.deleteMessage(chatId, query.message.message_id); // remove old page
