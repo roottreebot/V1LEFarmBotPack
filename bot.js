@@ -861,49 +861,48 @@ ${result}
   );
 });
 
+// ================= /userprofile COMMAND =================
+bot.onText(/\/userprofile(?:\s+@?(\w+))?/, async (msg, match) => {
+  const targetName = match[1];
+  if (!targetName) return bot.sendMessage(msg.chat.id, '❌ Usage: /userprofile @username');
+
+  const target = Object.values(users).find(u => u.username?.toLowerCase() === targetName.toLowerCase());
+  if (!target) return bot.sendMessage(msg.chat.id, '❌ User not found');
+
+  const highestRole = getHighestRole(target);
+
+  bot.sendMessage(msg.chat.id,
+`👤 *${target.username || target.id}'s Profile*
+Level: ${target.level}
+XP: ${xpBar(target.xp, target.level)}
+🔥 Daily Streak: ${target.dailyStreak || 0}
+🏷 Highest Role: *${highestRole}*
+📦 Orders: ${target.orders.length}`, 
+  { parse_mode: 'Markdown' });
+});
+
 // ================= /profile COMMAND =================
-bot.onText(/\/profile/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
+bot.onText(/\/profile/, async msg => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+  const u = users[id];
 
-  ensureUser(userId, msg.from.username);
-  const u = users[userId];
-  const roles = u.roles?.length ? u.roles.join(", ") : "_No roles owned yet_";
+  const highestRole = getHighestRole(u);
 
-const badge = u.cosmetics?.badge || 'None';
-const title = u.cosmetics?.title || 'None';
-const frame = u.cosmetics?.frame || 'None';
-  
-  const profileText = `
-👤 *User Profile*
+  const kb = [
+    [{ text: '🎭 Change Role', callback_data: 'change_role' }],
+    [{ text: '🔄 Refresh Profile', callback_data: 'reload_profile' }]
+  ];
 
-🆔 ID: \`${userId}\`
-👑 Level: *${u.level}*
-📊 XP: ${xpBar(u.xp, u.level)}
-📅 Weekly XP: *${u.weeklyXp}*
-
-📦 Orders: *${u.orders?.length || 0}*
-🚫 Banned: *${u.banned ? 'Yes' : 'No'}*
-  `;
-
-  try {
-    // Try to fetch profile photo
-    const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
-
-    if (photos.total_count > 0) {
-      const fileId = photos.photos[0][photos.photos[0].length - 1].file_id;
-
-      return bot.sendPhoto(chatId, fileId, {
-        caption: profileText,
-        parse_mode: 'Markdown'
-      });
-    }
-  } catch (err) {
-    console.error('Profile photo fetch failed:', err.message);
-  }
-
-  // Fallback if no photo or error
-  bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
+  await sendOrEdit(id, 
+`👤 *Your Profile*
+Username: @${u.username || id}
+Level: ${u.level}
+XP: ${xpBar(u.xp, u.level)}
+🔥 Daily Streak: ${u.dailyStreak || 0}
+🏷 Highest Role: *${highestRole}*
+📦 Orders: ${u.orders.length}`, 
+  { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } });
 });
 
 // ================= BLACKJACK WITH XP AS CURRENCY =================
