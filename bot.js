@@ -214,6 +214,8 @@ async function showMainMenu(id, lbPage = 0) {
   cleanupOrders(id);
 
   const u = users[id];
+  const highestRole = getHighestRole(u);
+
   const orders = u.orders.length
     ? u.orders.map(o =>
         `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
@@ -252,8 +254,10 @@ ${lb.text}`,
   );
 }
 
-// ================= START =================
-bot.onText(/\/start|\/help/, msg => showMainMenu(msg.chat.id, 0));
+// START handler
+bot.onText(/\/start|\/help/, async msg => {
+  await showMainMenu(msg.chat.id, 0);
+});
 
 // ================= CALLBACKS =================
 bot.on('callback_query', async q => {
