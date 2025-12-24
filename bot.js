@@ -71,12 +71,6 @@ function ensureUser(id, username) {
       dailyStreak: 0,
       lastSlot: 0,
       lastSpin: 0,
-   
-    cosmetics: {
-        badge: null,
-        title: null,
-        frame: null
-    }
     };
   }
   if (username) users[id].username = username;
@@ -165,25 +159,6 @@ function getHighestRole(user) {
 
   return highest;
 }
-
-// ================= PROFILE COSMETICS =================
-const COSMETIC_STORE = {
-  badge: {
-    "✨ Star Badge": { price: 100 },
-    "🔥 Fire Badge": { price: 250 },
-    "💎 Diamond Badge": { price: 500 }
-  },
-  title: {
-    "The Grinder": { price: 300 },
-    "XP Farmer": { price: 600 },
-    "Legend": { price: 1000 }
-  },
-  frame: {
-    "🟦 Blue Frame": { price: 400 },
-    "🟥 Red Frame": { price: 700 },
-    "🟪 Purple Frame": { price: 1200 }
-  }
-};
 
 // ================= SESSIONS =================
 const sessions = {};
@@ -970,9 +945,6 @@ const frame = u.cosmetics?.frame || 'None';
 📊 XP: ${xpBar(u.xp, u.level)}
 📅 Weekly XP: *${u.weeklyXp}*
 
-🎖 Badge: *${badge}*
-📛 Title: *${title}*
-🖼 Frame: *${frame}*
 📦 Orders: *${u.orders?.length || 0}*
 🚫 Banned: *${u.banned ? 'Yes' : 'No'}*
   `;
