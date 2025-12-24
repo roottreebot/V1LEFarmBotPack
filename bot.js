@@ -64,7 +64,8 @@ function ensureUser(id, username) {
       banned: false,
       username: username || '',
       lastOrderAt: 0,
-
+      roles: [],
+      
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
       dailyStreak: 0,
