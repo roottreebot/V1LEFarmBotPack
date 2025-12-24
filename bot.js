@@ -69,6 +69,7 @@ function ensureUser(id, username) {
       lastDaily: 0,
       dailyStreak: 0,
       lastSlot: 0,
+      lastSpin: 0,
     };
   }
   if (username) users[id].username = username;
@@ -1223,6 +1224,68 @@ bot.onText(/\/daily/, (msg) => {
 
 Come back tomorrow to keep the streak alive!`,
     { parse_mode: 'Markdown' }
+  );
+});
+
+// ================= /spin =================
+bot.onText(/\/spin/, async (msg) => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+  const u = users[id];
+
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+
+  // ⏳ Cooldown check
+  if (now - u.lastSpin < DAY) {
+    const remaining = DAY - (now - u.lastSpin);
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    const secs = Math.floor((remaining % (60 * 1000)) / 1000);
+
+    return bot.sendMessage(
+      id,
+      `⏳ You already spun today! Come back in *${hours}h ${mins}m ${secs}s*`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  u.lastSpin = now;
+
+  // 🎡 Spin options
+  const rewards = [
+    { emoji: '💎', xp: 50 },
+    { emoji: '⭐', xp: 20 },
+    { emoji: '🍀', xp: 15 },
+    { emoji: '🔹', xp: 10 },
+    { emoji: '⚪', xp: 5 }
+  ];
+
+  // 🎞 Animation frames
+  const frames = [
+    '🎡 Spinning... | ⚪ ⚪ ⚪',
+    '🎡 Spinning... | 🔹 ⚪ ⚪',
+    '🎡 Spinning... | ⭐ 🔹 ⚪',
+    '🎡 Spinning... | 🍀 ⭐ 🔹',
+    '🎡 Spinning... | 💎 🍀 ⭐'
+  ];
+
+  const spinMsg = await bot.sendMessage(id, frames[0], { parse_mode: 'Markdown' });
+
+  // Animate spin
+  for (let i = 1; i < frames.length; i++) {
+    await new Promise(r => setTimeout(r, 400)); // 0.4s per frame
+    await bot.editMessageText(frames[i], { chat_id: id, message_id: spinMsg.message_id });
+  }
+
+  // Final reward
+  const reward = rewards[Math.floor(Math.random() * rewards.length)];
+  giveXP(id, reward.xp);
+  saveAll();
+
+  await bot.editMessageText(
+    `🎉 The wheel stopped at ${reward.emoji}!\nYou won *${reward.xp} XP* 🚀\n📊 Current XP: *${u.xp}*`,
+    { chat_id: id, message_id: spinMsg.message_id, parse_mode: 'Markdown' }
   );
 });
 
