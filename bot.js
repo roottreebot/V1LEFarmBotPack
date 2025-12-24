@@ -704,31 +704,42 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
 });
 
 // ================= /shop COMMAND =================
+const SHOP_PAGE_SIZE = 5;
+
+function showShop(chatId, page = 0) {
+  const allRoles = Object.entries(ROLE_SHOP);
+  const totalPages = Math.ceil(allRoles.length / SHOP_PAGE_SIZE) || 1;
+  page = Math.max(0, Math.min(page, totalPages - 1));
+
+  const slice = allRoles.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
+
+  let text = `🛒 *Role Shop*\n_Page ${page + 1}/${totalPages}_\n\n`;
+  slice.forEach(([name, { price }], i) => {
+    text += `${i + 1}. ${name} — ${price} XP\n`;
+  });
+
+  const buttons = [];
+  if (page > 0) buttons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
+  if (page < totalPages - 1) buttons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
+
+  bot.sendMessage(chatId, text, {
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: buttons.length ? [buttons] : [] }
+  });
+}
+
+// Command
 bot.onText(/\/shop/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
+  showShop(msg.chat.id, 0);
+});
 
-  ensureUser(userId, msg.from.username);
-
-  let text = `🛒 *XP Shop*\n\n`;
-
-  text += `👑 *Roles*\n`;
-  for (const [role, data] of Object.entries(ROLE_SHOP)) {
-    text += `• ${role} — *${data.price} XP*\n`;
-  }
-
-  text += `\n✨ *Cosmetics*\n`;
-
-  for (const type of Object.keys(COSMETIC_STORE)) {
-    text += `\n*${type.toUpperCase()}*\n`;
-    for (const [item, data] of Object.entries(COSMETIC_STORE[type])) {
-      text += `• ${item} — *${data.price} XP*\n`;
-    }
-  }
-
-  text += `\n🛍 Buy with:\n\`/buy <name>\``;
-
-  bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+// Pagination handler
+bot.on('callback_query', async q => {
+  const data = q.data;
+  if (!data.startsWith('shop_page_')) return;
+  const page = Number(data.split('_')[2]);
+  bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
+  showShop(q.message.chat.id, page);
 });
 
 // ================= /buy COMMAND (SMART MATCHING) =================
