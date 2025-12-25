@@ -118,7 +118,7 @@ const PRODUCTS = {
 
 // ================= ROLE SHOP =================
 const ROLE_SHOP = {
-  "🌟 Novice": { price: 20 },
+  "🌟 Novice": { price: 50 },
   "🌀 Initiate": { price: 50 },
   "🔥 Apprentice": { price: 100 },
   "💎 Adept": { price: 200 },
@@ -724,6 +724,11 @@ bot.on('callback_query', async q => {
 });
 
 // ================= /buy COMMAND (SMART MATCHING + EMOJI SUPPORT) =================
+const stringSimilarity = require('string-similarity'); // npm install string-similarity
+const CONFIRM_THRESHOLD = 50; // XP threshold to require confirmation
+const pendingBuys = new Set(); // prevent double-clicks
+const pendingConfirmations = new Map(); // track confirmations
+
 bot.onText(/\/buy (.+)/i, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -733,100 +738,159 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
 
   const inputRaw = match[1].trim().toLowerCase();
 
-  // Normalize string: lowercase, remove spaces/punctuation but keep emoji
   const normalize = s =>
     s
+      .trim()
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\p{Emoji}]/gu, ''); // keep letters, numbers, emoji
+      .replace(/[^a-z0-9\u00C0-\u017F⚡️⚔️]/g, '');
 
   const input = normalize(inputRaw);
 
-  let matches = [];
+  let candidates = [];
 
-  // 🔍 Search roles
   for (const [name, data] of Object.entries(ROLE_SHOP)) {
-    const normName = normalize(name);
-    if (normName.includes(input)) {
-      matches.push({
-        type: 'role',
-        name: name.trim(),
-        price: data.price
-      });
-    }
+    candidates.push({ type: 'role', name: name.trim(), price: data.price, normName: normalize(name) });
   }
 
-  // 🔍 Search cosmetics
   for (const type of Object.keys(COSMETIC_STORE)) {
     for (const [name, data] of Object.entries(COSMETIC_STORE[type])) {
-      const normName = normalize(name);
-      if (normName.includes(input)) {
-        matches.push({
-          type: 'cosmetic',
-          cosmeticType: type,
-          name,
-          price: data.price
-        });
+      candidates.push({ type: 'cosmetic', cosmeticType: type, name, price: data.price, normName: normalize(name) });
+    }
+  }
+
+  const scored = candidates.map(c => ({ ...c, similarity: stringSimilarity.compareTwoStrings(c.normName, input) }));
+
+  const topMatches = scored
+    .filter(c => c.similarity > 0.3)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 3);
+
+  if (topMatches.length === 0) {
+    return bot.sendMessage(chatId, `❌ Could not find anything matching:\n*${match[1]}*`, { parse_mode: 'Markdown' });
+  }
+
+  if (topMatches.length === 1 && topMatches[0].similarity === 1) {
+    handlePurchase(u, chatId, topMatches[0]);
+  } else {
+    const buttons = topMatches.map(item => ({
+      text: `${item.name} (${item.price} XP)`,
+      callback_data: `buy_${userId}_${encodeURIComponent(JSON.stringify(item))}`
+    }));
+    bot.sendMessage(chatId, `🤔 Did you mean:`, { reply_markup: { inline_keyboard: [buttons] } });
+  }
+});
+
+bot.on('callback_query', q => {
+  const data = q.data;
+  const chatId = q.message.chat.id;
+
+  if (data.startsWith('buy_')) {
+    const [_, uid, itemJson] = data.split('_');
+    const userId = parseInt(uid);
+    const item = JSON.parse(decodeURIComponent(itemJson));
+
+    if (!users[userId]) return;
+
+    const key = `${userId}_${item.name}`;
+    if (pendingBuys.has(key)) {
+      return bot.answerCallbackQuery(q.id, { text: '⚠️ Already processing...', show_alert: true });
+    }
+    pendingBuys.add(key);
+
+    const u = users[userId];
+
+    if (item.price >= CONFIRM_THRESHOLD) {
+      // Ask for confirmation
+      const confirmKey = `${userId}_${item.name}_confirm`;
+      pendingConfirmations.set(confirmKey, item);
+
+      bot.sendMessage(chatId, `⚠️ *Confirm Purchase?*\nYou are about to spend *${item.price} XP* on *${item.name}*.`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✅ Confirm', callback_data: `confirm_${userId}_${encodeURIComponent(item.name)}` },
+              { text: '❌ Cancel', callback_data: `cancel_${userId}_${encodeURIComponent(item.name)}` }
+            ]
+          ]
+        }
+      });
+      pendingBuys.delete(key);
+      return bot.answerCallbackQuery(q.id);
+    }
+
+    buyItem(u, chatId, item);
+    bot.answerCallbackQuery(q.id);
+    pendingBuys.delete(key);
+  }
+
+  // Handle confirm/cancel buttons
+  if (data.startsWith('confirm_') || data.startsWith('cancel_')) {
+    const [action, uid, itemNameEnc] = data.split('_');
+    const userId = parseInt(uid);
+    const itemName = decodeURIComponent(itemNameEnc);
+    const key = `${userId}_${itemName}_confirm`;
+
+    if (!pendingConfirmations.has(key)) return bot.answerCallbackQuery(q.id);
+
+    const item = pendingConfirmations.get(key);
+    const u = users[userId];
+
+    if (action === 'confirm') {
+      buyItem(u, chatId, item);
+    } else {
+      bot.sendMessage(chatId, `❌ Purchase canceled for *${item.name}*`, { parse_mode: 'Markdown' });
+    }
+
+    pendingConfirmations.delete(key);
+    bot.answerCallbackQuery(q.id);
+  }
+});
+
+function handlePurchase(u, chatId, item) {
+  if (item.price >= CONFIRM_THRESHOLD) {
+    // Ask for confirmation
+    const confirmKey = `${u.id}_${item.name}_confirm`;
+    pendingConfirmations.set(confirmKey, item);
+
+    bot.sendMessage(chatId, `⚠️ *Confirm Purchase?*\nYou are about to spend *${item.price} XP* on *${item.name}*.`, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Confirm', callback_data: `confirm_${u.id}_${encodeURIComponent(item.name)}` },
+            { text: '❌ Cancel', callback_data: `cancel_${u.id}_${encodeURIComponent(item.name)}` }
+          ]
+        ]
       }
-    }
+    });
+  } else {
+    buyItem(u, chatId, item);
   }
+}
 
-  // ❌ Nothing found
-  if (matches.length === 0) {
-    return bot.sendMessage(
-      chatId,
-      `❌ Could not find anything matching:\n*${match[1]}*\n\nUse /shop to see available items.`,
-      { parse_mode: 'Markdown' }
-    );
-  }
-
-  // ⚠️ Multiple matches → suggest
-  if (matches.length > 1) {
-    let text = `🤔 *Multiple items found*\n\n`;
-    for (const m of matches) {
-      text += `• ${m.name} (${m.type}) — *${m.price} XP*\n`;
-    }
-    text += `\nPlease type a more specific name.`;
-
-    return bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-  }
-
-  // ✅ Single match
-  const item = matches[0];
-
+function buyItem(u, chatId, item) {
   if (u.xp < item.price) {
-    return bot.sendMessage(
-      chatId,
-      `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${item.price} XP*.`,
-      { parse_mode: 'Markdown' }
-    );
+    return bot.sendMessage(chatId, `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${item.price} XP*.`, { parse_mode: 'Markdown' });
   }
 
-  // 🧾 Already owned?
   if (item.type === 'role') {
-    if (u.roles.includes(item.name)) {
-      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
-    }
+    if (u.roles.includes(item.name)) return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
     u.roles.push(item.name);
   }
 
   if (item.type === 'cosmetic') {
     u.cosmetics ||= {};
     u.cosmetics[item.cosmeticType] ||= [];
-    if (u.cosmetics[item.cosmeticType].includes(item.name)) {
-      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
-    }
+    if (u.cosmetics[item.cosmeticType].includes(item.name)) return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
     u.cosmetics[item.cosmeticType].push(item.name);
   }
 
   u.xp -= item.price;
   saveAll();
 
-  bot.sendMessage(
-    chatId,
-    `✅ *Purchase successful!*\n\nYou bought *${item.name}* for *${item.price} XP*.`,
-    { parse_mode: 'Markdown' }
-  );
-});
+  bot.sendMessage(chatId, `✅ *Purchase successful!*\nYou bought *${item.name}* for *${item.price} XP*.`, { parse_mode: 'Markdown' });
+}
 
 // ================= /slots (ANIMATED + ULTRA) =================
 bot.onText(/\/slots (\d+)/, async (msg, match) => {
