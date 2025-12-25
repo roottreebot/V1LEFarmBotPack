@@ -293,52 +293,33 @@ bot.on('callback_query', async (q) => {
 
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
-  // ================== CHANGE ROLE ==================
-  if (data === 'change_role') {
-    const availableRoles = Object.keys(ROLE_SHOP).map(r => [{ text: `${r} ($${ROLE_SHOP[r].price})`, callback_data: `role_${r}` }]);
-    return sendOrEdit(id, '🎭 Select a role to change:', {
-      message_id: q.message.message_id,
-      reply_markup: { inline_keyboard: availableRoles }
-    });
-  }
-
-  if (data.startsWith('role_')) {
-    const role = data.replace('role_', '');
-    if (!ROLE_SHOP[role]) return bot.answerCallbackQuery(q.id, { text: '❌ Invalid role', show_alert: true });
-
-    if (!u.roles.includes(role)) {
-      u.roles.push(role);
-      saveAll();
-      return sendOrEdit(id, `✅ Your new role: *${role}*`, { message_id: q.message.message_id, parse_mode: 'Markdown' });
-    } else {
-      return bot.answerCallbackQuery(q.id, { text: '❌ You already have this role', show_alert: true });
-    }
-  }
-
-  // ================== REFRESH MAIN MENU ==================
-  if (data === 'reload') return showMainMenu(id, q.message.message_id);
-
   // ================== SHOP PAGINATION ==================
-  if (data.startsWith('shop_page_')) {
-    const page = Number(data.split('_')[2]);
-    return showShop(id, page, q.message.message_id);
-  }
+if (data.startsWith('shop_page_')) {
+  const page = Number(data.split('_')[2]);
+  return showShop(id, page);
+}
 
-  // ================== BUY ROLE ==================
-  if (data.startsWith('buyrole_')) {
-    const role = data.replace('buyrole_', '');
-    const price = ROLE_SHOP[role]?.price;
-    if (!price) return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
-    if (u.xp < price) return bot.answerCallbackQuery(q.id, { text: 'Not enough XP!', show_alert: true });
-    if (u.roles.includes(role)) return bot.answerCallbackQuery(q.id, { text: 'You already own this role!', show_alert: true });
+// ================== BUY ROLE ==================
+if (data.startsWith('buyrole_')) {
+  const role = data.replace('buyrole_', '');
+  const roleData = ROLE_SHOP[role];
 
-    u.xp -= price;
-    u.roles.push(role);
-    saveAll();
+  if (!roleData)
+    return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
 
-    bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role} for ${price} XP!` });
-    return showShop(id, 0, q.message.message_id);
-  }
+  if (u.roles.includes(role))
+    return bot.answerCallbackQuery(q.id, { text: 'You already own this role!', show_alert: true });
+
+  if (u.xp < roleData.price)
+    return bot.answerCallbackQuery(q.id, { text: 'Not enough XP!', show_alert: true });
+
+  u.xp -= roleData.price;
+  u.roles.push(role);
+  saveAll();
+
+  bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role}!` });
+  return showShop(id, 0);
+}
 
   // ================== LEADERBOARD PAGINATION ==================
   if (data.startsWith('lb_')) {
