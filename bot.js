@@ -268,10 +268,12 @@ async function showMainMenu(id, lbPage = 0) {
   await sendOrEdit(
     id,
 `${storeStatus}
+
 👑 Highest Role: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 XP: ${xpBar(u.xp, u.level)}
 ${streakText(u)}
+
 📦 *Your Orders* (last 5)
 ${orders}
 
