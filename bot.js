@@ -14,6 +14,12 @@ if (!TOKEN || !ADMIN_IDS.length) {
   process.exit(1);
 }
 
+const ADMIN_ROLE = '👑 ADMIN';
+
+const ADMIN_IDS = process.env.ADMIN_IDS
+  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim()))
+  : [];
+
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // ================= SLOTS CONFIG =================
@@ -72,11 +78,9 @@ function ensureUser(id, username) {
       lastSlot: 0,
       lastSpin: 0,
    
-    cosmetics: {
-        badge: null,
-        title: null,
-        frame: null
-    }
+      // 🔒 Force admin role if ID is admin
+  if (ADMIN_IDS.includes(id)) {
+    users[id].role = ADMIN_ROLE;
     };
   }
   if (username) users[id].username = username;
