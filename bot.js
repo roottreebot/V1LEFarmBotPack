@@ -16,17 +16,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// commands
-bot.onText(/\/shop/, ...);
-bot.onText(/\/start/, ...);
-
-// callback_query
-bot.on('callback_query', ...);
-
-// other functions
-function showShop(...) { ... }
-function showMainMenu(...) { ... }
-
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
@@ -43,15 +32,15 @@ const DB_FILE = 'users.json';
 const META_FILE = 'meta.json';
 const FEEDBACK_FILE = 'feedback.json';
 
-let users = fs.existsSync(DB_FILE)
-  ? JSON.parse(fs.readFileSync(DB_FILE))
-  : {};
-
-const sessions = {};
-
+let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
   : { weeklyReset: Date.now(), storeOpen: true };
+
+function saveAll() {
+  fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
+  fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
+}
 
 let feedback = fs.existsSync(FEEDBACK_FILE)
   ? JSON.parse(fs.readFileSync(FEEDBACK_FILE))
@@ -177,6 +166,25 @@ function getHighestRole(user) {
   return highest;
 }
 
+// ================= PROFILE COSMETICS =================
+const COSMETIC_STORE = {
+  badge: {
+    "✨ Star Badge": { price: 100 },
+    "🔥 Fire Badge": { price: 250 },
+    "💎 Diamond Badge": { price: 500 }
+  },
+  title: {
+    "The Grinder": { price: 300 },
+    "XP Farmer": { price: 600 },
+    "Legend": { price: 1000 }
+  },
+  frame: {
+    "🟦 Blue Frame": { price: 400 },
+    "🟥 Red Frame": { price: 700 },
+    "🟪 Purple Frame": { price: 1200 }
+  }
+};
+
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -254,15 +262,17 @@ async function showMainMenu(id, lbPage = 0) {
   const highestRole = getHighestRole(u);
 
   const orders = u.orders.length
-    ? u.orders.slice(-5).map(o =>
+    ? u.orders.map(o =>
         `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
   const lb = getLeaderboard(lbPage);
 
-  const kb = [
+  let kb = [
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
+    lb.buttons[0],
+    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
   if (ADMIN_IDS.includes(id)) {
@@ -289,98 +299,44 @@ ${lb.text}`,
   );
 }
 
-// START / HELP handler
+// START handler
 bot.onText(/\/start|\/help/, async msg => {
   await showMainMenu(msg.chat.id, 0);
 });
 
-// ================= CALLBACK =================
-bot.on('callback_query', async (q) => {
-  const chatId = q.message.chat.id;
-  const id = q.from.id;
-  const data = q.data;
-
+// ================= CALLBACKS =================
+bot.on('callback_query', async q => {
+  const id = q.message.chat.id;
   ensureUser(id, q.from.username);
-  const u = users[id];
   const s = sessions[id] || (sessions[id] = {});
-
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
-  // ================= RELOAD MAIN MENU =================
-  if (data === 'reload') {
-    return showMainMenu(id, 0);
+  if (q.data === 'reload') return showMainMenu(id);
+  if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
+
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = true; saveAll(); return showMainMenu(id);
+  }
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = false; saveAll(); return showMainMenu(id);
   }
 
-  // ================= SHOP PAGINATION =================
-  if (data.startsWith('shop_page_')) {
-    const page = Number(data.split('_')[2]);
-    return showShop(id, page);
-  }
-
-  // ================= BUY ROLE =================
-  if (data.startsWith('buyrole_')) {
-    const role = data.replace('buyrole_', '');
-    const roleData = ROLE_SHOP[role];
-
-    if (!roleData)
-      return bot.answerCallbackQuery(q.id, { text: '❌ Role not found', show_alert: true });
-
-    if (u.roles.includes(role))
-      return bot.answerCallbackQuery(q.id, { text: '⚠️ You already own this role', show_alert: true });
-
-    if (u.xp < roleData.price)
-      return bot.answerCallbackQuery(q.id, { text: '❌ Not enough XP', show_alert: true });
-
-    u.xp -= roleData.price;
-    u.roles.push(role);
-    saveAll();
-
-    bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role}` });
-    return showShop(id, 0);
-  }
-
-  // ================= LEADERBOARD PAGINATION =================
-  if (data.startsWith('lb_')) {
-    const page = Number(data.split('_')[1]);
-    return showMainMenu(id, page);
-  }
-
-  // ================= STORE OPEN / CLOSE =================
-  if (data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true;
-    saveAll();
-    return showMainMenu(id, 0);
-  }
-
-  if (data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false;
-    saveAll();
-    return showMainMenu(id, 0);
-  }
-
-  // ================= PRODUCT SELECT =================
-  if (data.startsWith('product_')) {
-    if (!meta.storeOpen)
-      return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed', show_alert: true });
-
-    if (Date.now() - (s.lastClick || 0) < 30000)
-      return bot.answerCallbackQuery(q.id, { text: '⏳ Please wait before ordering again', show_alert: true });
-
-    const pending = u.orders.filter(o => o.status === 'Pending').length;
-    if (pending >= 2)
-      return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders', show_alert: true });
-
+  if (q.data.startsWith('product_')) {
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
+    if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
     s.lastClick = Date.now();
-    s.product = data.replace('product_', '');
-    s.step = 'amount';
 
-    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`, { parse_mode: 'Markdown' });
+    // ✅ MAX 2 PENDING ORDERS
+    const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
+    if (pendingCount >= 2) return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
+
+    s.product = q.data.replace('product_', '');
+    s.step = 'amount';
+    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`);
   }
 
-  // ================= CONFIRM ORDER =================
-  if (data === 'confirm_order') {
-    if (!meta.storeOpen)
-      return bot.answerCallbackQuery(q.id, { text: 'Store closed', show_alert: true });
+  if (q.data === 'confirm_order') {
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
 
     const xp = Math.floor(2 + s.cash * 0.5);
     const order = {
@@ -392,20 +348,25 @@ bot.on('callback_query', async (q) => {
       adminMsgs: []
     };
 
-    u.orders.push(order);
-    u.orders = u.orders.slice(-5);
+    users[id].orders.push(order);
+    users[id].orders = users[id].orders.slice(-5);
     saveAll();
 
     for (const admin of ADMIN_IDS) {
       const m = await bot.sendMessage(
         admin,
-        `🧾 *NEW ORDER*\nUser: @${u.username || id}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ⚪ Pending`,
+`🧾 *NEW ORDER*
+User: @${users[id].username || id}
+Product: ${order.product}
+Grams: ${order.grams}g
+Price: $${order.cash}
+Status: ⚪ Pending`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
             inline_keyboard: [[
-              { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
-              { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
+              { text: '✅ Accept', callback_data: `admin_accept_${id}_${users[id].orders.length - 1}` },
+              { text: '❌ Reject', callback_data: `admin_reject_${id}_${users[id].orders.length - 1}` }
             ]]
           }
         }
@@ -413,44 +374,45 @@ bot.on('callback_query', async (q) => {
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
-    return showMainMenu(id, 0);
+    return showMainMenu(id);
   }
 
-  // ================= ADMIN ACCEPT / REJECT =================
-  if (data.startsWith('admin_')) {
-    const [, action, uid, index] = data.split('_');
+  if (q.data.startsWith('admin_')) {
+    const [, action, uid, index] = q.data.split('_');
     const userId = Number(uid);
     const i = Number(index);
+    const order = users[userId]?.orders[i];
+    if (!order || order.status !== 'Pending') return;
 
-    const target = users[userId];
-    if (!target || !target.orders[i]) return;
-
-    const order = target.orders[i];
-    if (order.status !== 'Pending') return;
+    order.status = action === 'accept' ? '✅ Accepted' : '❌ Rejected';
 
     if (action === 'accept') {
-      order.status = '✅ Accepted';
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
+      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
     } else {
-      order.status = '❌ Rejected';
-      target.orders = target.orders.filter(o => o !== order);
+      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
+    const adminText = `🧾 *ORDER UPDATED*
+User: @${users[userId].username || userId}
+Product: ${order.product}
+Grams: ${order.grams}g
+Price: $${order.cash}
+Status: ${order.status}`;
+
     for (const { admin, msgId } of order.adminMsgs) {
-      bot.editMessageText(
-        `🧾 *ORDER UPDATED*\nUser: @${target.username || userId}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ${order.status}`,
-        { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }
-      ).catch(() => {});
+      bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
     }
 
     saveAll();
-    return showMainMenu(userId, 0);
+    return showMainMenu(userId);
   }
 
-  console.log('Unhandled callback:', data);
+
 });
-  
+
 // ================= USER INPUT =================
 bot.on('message', msg => {
   const id = msg.chat.id;
@@ -741,16 +703,9 @@ bot.onText(/\/userstats (.+)/, async (msg, match) => {
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
-// ================= /shop COMMAND LISTENER =================
-bot.onText(/\/shop/, (msg) => {
-  const chatId = msg.chat.id;
-  ensureUser(chatId, msg.from.username);
-  showShop(chatId, 0); // show the first page of the shop
-});
-
+// ================= /shop COMMAND =================
 const SHOP_PAGE_SIZE = 5;
 
-// Show shop page
 function showShop(chatId, page = 0) {
   const allRoles = Object.entries(ROLE_SHOP);
   const totalPages = Math.ceil(allRoles.length / SHOP_PAGE_SIZE) || 1;
@@ -759,24 +714,137 @@ function showShop(chatId, page = 0) {
   const slice = allRoles.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
 
   let text = `🛒 *Role Shop*\n_Page ${page + 1}/${totalPages}_\n\n`;
-  const buttons = [];
-
   slice.forEach(([name, { price }], i) => {
     text += `${i + 1}. ${name} — ${price} XP\n`;
-    buttons.push([{ text: `💰 Buy ${name}`, callback_data: `buyrole_${name}` }]);
   });
 
-  const navButtons = [];
-  if (page > 0) navButtons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
-  if (page < totalPages - 1) navButtons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
-  if (navButtons.length) buttons.push(navButtons);
+  const buttons = [];
+  if (page > 0) buttons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
+  if (page < totalPages - 1) buttons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
 
-  // ✅ THIS LINE FIXES DEAD BUTTONS
-  sendOrEdit(chatId, text, {
+  bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: buttons }
+    reply_markup: { inline_keyboard: buttons.length ? [buttons] : [] }
   });
 }
+
+// Command
+bot.onText(/\/shop/, (msg) => {
+  showShop(msg.chat.id, 0);
+});
+
+// Pagination handler
+bot.on('callback_query', async q => {
+  const data = q.data;
+  if (!data.startsWith('shop_page_')) return;
+  const page = Number(data.split('_')[2]);
+  bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
+  showShop(q.message.chat.id, page);
+});
+
+// ================= /buy COMMAND (SMART MATCHING) =================
+bot.onText(/\/buy (.+)/i, (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  ensureUser(userId, msg.from.username);
+  const u = users[userId];
+
+  const inputRaw = match[1].trim().toLowerCase();
+
+  const normalize = s =>
+    s.toLowerCase()
+     .replace(/[^a-z0-9]/g, '');
+
+  const input = normalize(inputRaw);
+
+  let matches = [];
+
+  // 🔍 Search roles
+  for (const [name, data] of Object.entries(ROLE_SHOP)) {
+    if (normalize(name).includes(input)) {
+      matches.push({
+        type: 'role',
+        name,
+        price: data.price
+      });
+    }
+  }
+
+  // 🔍 Search cosmetics
+  for (const type of Object.keys(COSMETIC_STORE)) {
+    for (const [name, data] of Object.entries(COSMETIC_STORE[type])) {
+      if (normalize(name).includes(input)) {
+        matches.push({
+          type: 'cosmetic',
+          cosmeticType: type,
+          name,
+          price: data.price
+        });
+      }
+    }
+  }
+
+  // ❌ Nothing found
+  if (matches.length === 0) {
+    return bot.sendMessage(
+      chatId,
+      `❌ Could not find anything matching:\n*${match[1]}*\n\nUse /shop to see available items.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // ⚠️ Multiple matches → suggest
+  if (matches.length > 1) {
+    let text = `🤔 *Multiple items found*\n\n`;
+    for (const m of matches) {
+      text += `• ${m.name} (${m.type}) — *${m.price} XP*\n`;
+    }
+    text += `\nPlease type a more specific name.`;
+
+    return bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+  }
+
+  // ✅ Single match
+  const item = matches[0];
+
+  if (u.xp < item.price) {
+    return bot.sendMessage(
+      chatId,
+      `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${item.price} XP*.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // 🧾 Already owned?
+  if (item.type === 'role') {
+    if (u.roles.includes(item.name)) {
+      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
+    }
+
+    u.roles.push(item.name);
+  }
+
+  if (item.type === 'cosmetic') {
+    u.cosmetics ||= {};
+    u.cosmetics[item.cosmeticType] ||= [];
+
+    if (u.cosmetics[item.cosmeticType].includes(item.name)) {
+      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
+    }
+
+    u.cosmetics[item.cosmeticType].push(item.name);
+  }
+
+  u.xp -= item.price;
+  saveAll();
+
+  bot.sendMessage(
+    chatId,
+    `✅ *Purchase successful!*\n\nYou bought *${item.name}* for *${item.price} XP*.`,
+    { parse_mode: 'Markdown' }
+  );
+});
 
 // ================= /slots (ANIMATED + ULTRA) =================
 bot.onText(/\/slots (\d+)/, async (msg, match) => {
@@ -881,48 +949,52 @@ ${result}
   );
 });
 
-// ================= /userprofile COMMAND =================
-bot.onText(/\/userprofile(?:\s+@?(\w+))?/, async (msg, match) => {
-  const targetName = match[1];
-  if (!targetName) return bot.sendMessage(msg.chat.id, '❌ Usage: /userprofile @username');
-
-  const target = Object.values(users).find(u => u.username?.toLowerCase() === targetName.toLowerCase());
-  if (!target) return bot.sendMessage(msg.chat.id, '❌ User not found');
-
-  const highestRole = getHighestRole(target);
-
-  bot.sendMessage(msg.chat.id,
-`👤 *${target.username || target.id}'s Profile*
-Level: ${target.level}
-XP: ${xpBar(target.xp, target.level)}
-🔥 Daily Streak: ${target.dailyStreak || 0}
-🏷 Highest Role: *${highestRole}*
-📦 Orders: ${target.orders.length}`, 
-  { parse_mode: 'Markdown' });
-});
-
 // ================= /profile COMMAND =================
-bot.onText(/\/profile/, async msg => {
-  const id = msg.chat.id;
-  ensureUser(id, msg.from.username);
-  const u = users[id];
+bot.onText(/\/profile/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
 
-  const highestRole = getHighestRole(u);
+  ensureUser(userId, msg.from.username);
+  const u = users[userId];
+  const roles = u.roles?.length ? u.roles.join(", ") : "_No roles owned yet_";
 
-  // Only a refresh button
-  const kb = [
-    [{ text: '🔄 Refresh Profile', callback_data: 'reload_profile' }]
-  ];
+const badge = u.cosmetics?.badge || 'None';
+const title = u.cosmetics?.title || 'None';
+const frame = u.cosmetics?.frame || 'None';
+  
+  const profileText = `
+👤 *User Profile*
 
-  await sendOrEdit(id, 
-`👤 *Your Profile*
-Username: @${u.username || id}
-Level: ${u.level}
-XP: ${xpBar(u.xp, u.level)}
-🔥 Daily Streak: ${u.dailyStreak || 0}
-🏷 Highest Role: *${highestRole}*
-📦 Orders: ${u.orders.length}`, 
-  { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } });
+🆔 ID: \`${userId}\`
+👑 Level: *${u.level}*
+📊 XP: ${xpBar(u.xp, u.level)}
+📅 Weekly XP: *${u.weeklyXp}*
+
+🎖 Badge: *${badge}*
+📛 Title: *${title}*
+🖼 Frame: *${frame}*
+📦 Orders: *${u.orders?.length || 0}*
+🚫 Banned: *${u.banned ? 'Yes' : 'No'}*
+  `;
+
+  try {
+    // Try to fetch profile photo
+    const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
+
+    if (photos.total_count > 0) {
+      const fileId = photos.photos[0][photos.photos[0].length - 1].file_id;
+
+      return bot.sendPhoto(chatId, fileId, {
+        caption: profileText,
+        parse_mode: 'Markdown'
+      });
+    }
+  } catch (err) {
+    console.error('Profile photo fetch failed:', err.message);
+  }
+
+  // Fallback if no photo or error
+  bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
 // ================= BLACKJACK WITH XP AS CURRENCY =================
@@ -1267,7 +1339,6 @@ bot.onText(/\/clearfeedback/, msg => {
 
   bot.sendMessage(id, '🗑 *All feedback cleared*', { parse_mode: 'Markdown' });
 });
-
 // ================= /daily WITH STREAK =================
 bot.onText(/\/daily/, (msg) => {
   const id = msg.chat.id;
