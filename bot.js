@@ -738,7 +738,7 @@ bot.onText(/\/shop(?:\s+(\d+))?/i, (msg, match) => {
   });
 });
 
-// ================= /BUY COMMAND =================
+// ================= /BUY COMMAND (STRICT XP ENFORCEMENT) =================
 bot.onText(/\/buy (.+)/i, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -746,17 +746,21 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   ensureUser(userId, msg.from.username);
   const u = users[userId];
 
-  const input = match[1].toLowerCase();
+  // HARD GUARDS
+  if (!u || typeof u.xp !== 'number') {
+    return bot.sendMessage(chatId, '❌ User data error. XP missing.');
+  }
 
   const normalize = s =>
     s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  const cleanInput = normalize(input);
+  const input = normalize(match[1]);
 
   const matches = Object.entries(ROLE_SHOP).filter(([name]) =>
-    normalize(name).includes(cleanInput)
+    normalize(name).includes(input)
   );
 
+  // ❌ No match
   if (matches.length === 0) {
     return bot.sendMessage(
       chatId,
@@ -765,6 +769,7 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
     );
   }
 
+  // ⚠ Multiple matches
   if (matches.length > 1) {
     let text = `🤔 *Multiple roles found*\n\n`;
     for (const [name, data] of matches) {
@@ -776,26 +781,35 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   }
 
   const [roleName, roleData] = matches[0];
+  const price = Number(roleData.price);
 
+  // 🔒 OWNERSHIP CHECK
+  u.roles ||= [];
   if (u.roles.includes(roleName)) {
     return bot.sendMessage(chatId, `⚠️ You already own *${roleName}*.`);
   }
 
-  if (u.xp < roleData.price) {
+  // 🔥 HARD XP CHECK (NO LEVEL XP, NO BORROWING)
+  if (u.xp < price) {
     return bot.sendMessage(
       chatId,
-      `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${roleData.price} XP*.`,
+      `❌ *Not enough XP*\n\nYou have *${u.xp} XP*\nRequired: *${price} XP*`,
       { parse_mode: 'Markdown' }
     );
   }
 
-  u.xp -= roleData.price;
+  // ✅ DEDUCT FIRST (CRITICAL)
+  u.xp -= price;
+
+  // ✅ THEN GRANT ROLE
   u.roles.push(roleName);
+
+  // 💾 SAVE IMMEDIATELY
   saveAll();
 
   bot.sendMessage(
     chatId,
-    `✅ *Purchase successful!*\nYou bought *${roleName}* for *${roleData.price} XP*.`,
+    `✅ *Purchase successful!*\n\nYou bought *${roleName}* for *${price} XP*.\nRemaining XP: *${u.xp}*`,
     { parse_mode: 'Markdown' }
   );
 });
