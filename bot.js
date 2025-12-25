@@ -242,29 +242,19 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const highestRole = getHighestRole(u);
 
-  // Format last 5 orders
   const orders = u.orders.length
     ? u.orders.slice(-5).map(o =>
         `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
-  // Leaderboard
   const lb = getLeaderboard(lbPage);
 
-  // Build keyboard
   const kb = [
-    // Products
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
-
-    // Leaderboard navigation buttons
-    ...lb.buttons,
-
-    // Reload menu button
     [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
-  // Admin store controls
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
       ? { text: '🔴 Close Store', callback_data: 'store_close' }
@@ -274,7 +264,6 @@ async function showMainMenu(id, lbPage = 0) {
 
   const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
 
-  // Send or edit menu
   await sendOrEdit(
     id,
 `${storeStatus}
