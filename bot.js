@@ -16,50 +16,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// —————————— Unified Callback Router ——————————
-
-const callbackHandlers = {};
-
-// Register a handler for a callback prefix
-function onCallback(prefix, handler) {
-  callbackHandlers[prefix] = handler;
-}
-
-bot.on('callback_query', async (q) => {
-  const chatId = q.message.chat.id;
-  const uid = q.from.id;
-  const data = q.data;
-
-  ensureUser(uid, q.from.username);
-  const u = users[uid];
-  const s = sessions[uid] || (sessions[uid] = {});
-
-  await bot.answerCallbackQuery(q.id).catch(() => {});
-
-  for (const prefix in callbackHandlers) {
-    if (data.startsWith(prefix)) {
-      try {
-        return callbackHandlers[prefix](q, data, u, s);
-      } catch (err) {
-        console.error('Callback handler error:', err);
-      }
-    }
-  }
-
-  console.log('⚠️ Unhandled callback:', data);
-});
-
-// commands
-bot.onText(/\/shop/, ...);
-bot.onText(/\/start/, ...);
-
-// callback_query
-bot.on('callback_query', ...);
-
-// other functions
-function showShop(...) { ... }
-function showMainMenu(...) { ... }
-
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
@@ -76,15 +32,15 @@ const DB_FILE = 'users.json';
 const META_FILE = 'meta.json';
 const FEEDBACK_FILE = 'feedback.json';
 
-let users = fs.existsSync(DB_FILE)
-  ? JSON.parse(fs.readFileSync(DB_FILE))
-  : {};
-
-const sessions = {};
-
+let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
 let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
   : { weeklyReset: Date.now(), storeOpen: true };
+
+function saveAll() {
+  fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
+  fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
+}
 
 let feedback = fs.existsSync(FEEDBACK_FILE)
   ? JSON.parse(fs.readFileSync(FEEDBACK_FILE))
@@ -109,13 +65,13 @@ function ensureUser(id, username) {
       username: username || '',
       lastOrderAt: 0,
       roles: [],
-      
+
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
       dailyStreak: 0,
       lastSlot: 0,
       lastSpin: 0,
-   
+
     cosmetics: {
         badge: null,
         title: null,
@@ -200,7 +156,7 @@ function getHighestRole(user) {
 
   // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
-  
+
   // Find the highest role the user owns
   let highest = "_No role_";
   for (const role of roleNames) {
@@ -286,18 +242,29 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const highestRole = getHighestRole(u);
 
+  // Format last 5 orders
   const orders = u.orders.length
     ? u.orders.slice(-5).map(o =>
         `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
+  // Leaderboard
   const lb = getLeaderboard(lbPage);
 
+  // Build keyboard
   const kb = [
+    // Products
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
+
+    // Leaderboard navigation buttons
+    ...lb.buttons,
+
+    // Reload menu button
+    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
+  // Admin store controls
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
       ? { text: '🔴 Close Store', callback_data: 'store_close' }
@@ -307,6 +274,7 @@ async function showMainMenu(id, lbPage = 0) {
 
   const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
 
+  // Send or edit menu
   await sendOrEdit(
     id,
 `${storeStatus}
@@ -328,151 +296,146 @@ bot.onText(/\/start|\/help/, async msg => {
 });
 
 // ================= CALLBACK =================
-  // ================= RELOAD MAIN MENU =================
-  if (data === 'reload') {
-    return showMainMenu(id, 0);
+bot.on('callback_query', async (q) => {
+  const id = q.message.chat.id;
+  const data = q.data;
+  ensureUser(id, q.from.username);
+  const s = sessions[id] || (sessions[id] = {});
+  const u = users[id];
+
+  await bot.answerCallbackQuery(q.id).catch(() => {});
+
+  // ================== CHANGE ROLE ==================
+  if (data === 'change_role') {
+    const availableRoles = Object.keys(ROLE_SHOP).map(r => [{ text: `${r} ($${ROLE_SHOP[r].price})`, callback_data: `role_${r}` }]);
+    return sendOrEdit(id, '🎭 Select a role to change:', {
+      message_id: q.message.message_id,
+      reply_markup: { inline_keyboard: availableRoles }
+    });
   }
 
-  // ================= SHOP PAGINATION =================
+  if (data.startsWith('role_')) {
+    const role = data.replace('role_', '');
+    if (!ROLE_SHOP[role]) return bot.answerCallbackQuery(q.id, { text: '❌ Invalid role', show_alert: true });
+
+    if (!u.roles.includes(role)) {
+      u.roles.push(role);
+      saveAll();
+      return sendOrEdit(id, `✅ Your new role: *${role}*`, { message_id: q.message.message_id, parse_mode: 'Markdown' });
+    } else {
+      return bot.answerCallbackQuery(q.id, { text: '❌ You already have this role', show_alert: true });
+    }
+  }
+
+  // ================== REFRESH MAIN MENU ==================
+  if (data === 'reload') return showMainMenu(id, q.message.message_id);
+
+  // ================== SHOP PAGINATION ==================
   if (data.startsWith('shop_page_')) {
     const page = Number(data.split('_')[2]);
-    return showShop(id, page);
+    return showShop(id, page, q.message.message_id);
   }
 
-  // ================= BUY ROLE =================
+  // ================== BUY ROLE ==================
   if (data.startsWith('buyrole_')) {
     const role = data.replace('buyrole_', '');
-    const roleData = ROLE_SHOP[role];
+    const price = ROLE_SHOP[role]?.price;
+    if (!price) return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
+    if (u.xp < price) return bot.answerCallbackQuery(q.id, { text: 'Not enough XP!', show_alert: true });
+    if (u.roles.includes(role)) return bot.answerCallbackQuery(q.id, { text: 'You already own this role!', show_alert: true });
 
-    if (!roleData)
-      return bot.answerCallbackQuery(q.id, { text: '❌ Role not found', show_alert: true });
-
-    if (u.roles.includes(role))
-      return bot.answerCallbackQuery(q.id, { text: '⚠️ You already own this role', show_alert: true });
-
-    if (u.xp < roleData.price)
-      return bot.answerCallbackQuery(q.id, { text: '❌ Not enough XP', show_alert: true });
-
-    u.xp -= roleData.price;
+    u.xp -= price;
     u.roles.push(role);
     saveAll();
 
-    bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role}` });
-    return showShop(id, 0);
+    bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role} for ${price} XP!` });
+    return showShop(id, 0, q.message.message_id);
   }
 
-  // ================= LEADERBOARD PAGINATION =================
+  // ================== LEADERBOARD PAGINATION ==================
   if (data.startsWith('lb_')) {
-    const page = Number(data.split('_')[1]);
-    return showMainMenu(id, page);
+    const page = Math.max(0, Number(data.split('_')[1]));
+    return showLeaderboard(id, page, q.message.message_id);
   }
 
-  // ================= STORE OPEN / CLOSE =================
+  // ================== WEEKLY LEADERBOARD ==================
+  if (data.startsWith('weekly_')) {
+    const page = Math.max(0, Number(data.split('_')[1]));
+    return showWeekly(id, page, q.message.message_id);
+  }
+
+  // ================== STORE OPEN/CLOSE ==================
   if (data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true;
-    saveAll();
-    return showMainMenu(id, 0);
+    meta.storeOpen = true; saveAll(); return showMainMenu(id, q.message.message_id);
   }
-
   if (data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false;
-    saveAll();
-    return showMainMenu(id, 0);
+    meta.storeOpen = false; saveAll(); return showMainMenu(id, q.message.message_id);
   }
 
-  // ================= PRODUCT SELECT =================
+  // ================== PRODUCT ORDERS ==================
   if (data.startsWith('product_')) {
-    if (!meta.storeOpen)
-      return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed', show_alert: true });
-
-    if (Date.now() - (s.lastClick || 0) < 30000)
-      return bot.answerCallbackQuery(q.id, { text: '⏳ Please wait before ordering again', show_alert: true });
-
-    const pending = u.orders.filter(o => o.status === 'Pending').length;
-    if (pending >= 2)
-      return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders', show_alert: true });
-
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed!', show_alert: true });
+    if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
     s.lastClick = Date.now();
+
+    const pendingCount = u.orders.filter(o => o.status === 'Pending').length;
+    if (pendingCount >= 2) return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
+
     s.product = data.replace('product_', '');
     s.step = 'amount';
-
-    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`, { parse_mode: 'Markdown' });
+    return sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`, { message_id: q.message.message_id, parse_mode: 'Markdown' });
   }
 
-  // ================= CONFIRM ORDER =================
+  // ================== CONFIRM ORDER ==================
   if (data === 'confirm_order') {
-    if (!meta.storeOpen)
-      return bot.answerCallbackQuery(q.id, { text: 'Store closed', show_alert: true });
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
 
     const xp = Math.floor(2 + s.cash * 0.5);
-    const order = {
-      product: s.product,
-      grams: s.grams,
-      cash: s.cash,
-      status: 'Pending',
-      pendingXP: xp,
-      adminMsgs: []
-    };
+    const order = { product: s.product, grams: s.grams, cash: s.cash, status: 'Pending', pendingXP: xp, adminMsgs: [] };
 
     u.orders.push(order);
-    u.orders = u.orders.slice(-5);
+    u.orders = u.orders.slice(-5); // keep last 5 orders
     saveAll();
 
     for (const admin of ADMIN_IDS) {
-      const m = await bot.sendMessage(
-        admin,
+      const m = await bot.sendMessage(admin,
         `🧾 *NEW ORDER*\nUser: @${u.username || id}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ⚪ Pending`,
         {
           parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [[
-              { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
-              { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
-            ]]
-          }
+          reply_markup: { inline_keyboard: [[
+            { text: '✅ Accept', callback_data: `admin_accept_${id}_${u.orders.length - 1}` },
+            { text: '❌ Reject', callback_data: `admin_reject_${id}_${u.orders.length - 1}` }
+          ]] }
         }
       );
       order.adminMsgs.push({ admin, msgId: m.message_id });
     }
 
-    return showMainMenu(id, 0);
+    return showMainMenu(id, q.message.message_id);
   }
 
-  // ================= ADMIN ACCEPT / REJECT =================
+  // ================== ADMIN ACTIONS ==================
   if (data.startsWith('admin_')) {
     const [, action, uid, index] = data.split('_');
     const userId = Number(uid);
     const i = Number(index);
+    const order = users[userId]?.orders[i];
+    if (!order || order.status !== 'Pending') return;
 
-    const target = users[userId];
-    if (!target || !target.orders[i]) return;
-
-    const order = target.orders[i];
-    if (order.status !== 'Pending') return;
-
-    if (action === 'accept') {
-      order.status = '✅ Accepted';
-      giveXP(userId, order.pendingXP);
-      delete order.pendingXP;
-    } else {
-      order.status = '❌ Rejected';
-      target.orders = target.orders.filter(o => o !== order);
-    }
+    order.status = action === 'accept' ? '✅ Accepted' : '❌ Rejected';
+    if (action === 'accept') { giveXP(userId, order.pendingXP); delete order.pendingXP; }
+    else users[userId].orders = users[userId].orders.filter(o => o !== order);
 
     for (const { admin, msgId } of order.adminMsgs) {
-      bot.editMessageText(
-        `🧾 *ORDER UPDATED*\nUser: @${target.username || userId}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ${order.status}`,
-        { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }
-      ).catch(() => {});
+      bot.editMessageText(`🧾 *ORDER UPDATED*\nUser: @${users[userId].username || userId}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: ${order.cash}\nStatus: ${order.status}`,
+        { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
     }
 
     saveAll();
-    return showMainMenu(userId, 0);
+    return showMainMenu(userId, q.message.message_id);
   }
-
-  console.log('Unhandled callback:', data);
 });
-  
+
 // ================= USER INPUT =================
 bot.on('message', msg => {
   const id = msg.chat.id;
@@ -785,16 +748,17 @@ function showShop(chatId, page = 0) {
 
   slice.forEach(([name, { price }], i) => {
     text += `${i + 1}. ${name} — ${price} XP\n`;
+    // Buy button
     buttons.push([{ text: `💰 Buy ${name}`, callback_data: `buyrole_${name}` }]);
   });
 
+  // Pagination buttons
   const navButtons = [];
   if (page > 0) navButtons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
   if (page < totalPages - 1) navButtons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
   if (navButtons.length) buttons.push(navButtons);
 
-  // ✅ THIS LINE FIXES DEAD BUTTONS
-  sendOrEdit(chatId, text, {
+  bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: buttons }
   });
