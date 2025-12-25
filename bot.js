@@ -699,43 +699,43 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
-// ================= /SHOP COMMAND =================
+// ================= /shop COMMAND =================
 const SHOP_PAGE_SIZE = 5;
 
-bot.onText(/\/shop(?:\s+(\d+))?/i, (msg, match) => {
-  const chatId = msg.chat.id;
-  const page = Math.max(1, parseInt(match[1]) || 1);
+function showShop(chatId, page = 0) {
+  const allRoles = Object.entries(ROLE_SHOP);
+  const totalPages = Math.ceil(allRoles.length / SHOP_PAGE_SIZE) || 1;
+  page = Math.max(0, Math.min(page, totalPages - 1));
 
-  ensureUser(msg.from.id, msg.from.username);
+  const slice = allRoles.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
 
-  const roles = Object.entries(ROLE_SHOP);
-  const totalPages = Math.ceil(roles.length / SHOP_PAGE_SIZE);
-
-  if (page > totalPages) {
-    return bot.sendMessage(chatId, '❌ Invalid shop page.');
-  }
-
-  const start = (page - 1) * SHOP_PAGE_SIZE;
-  const pageItems = roles.slice(start, start + SHOP_PAGE_SIZE);
-
-  let text = `🛒 *Role Shop* (Page ${page}/${totalPages})\n\n`;
-
-  for (const [name, data] of pageItems) {
-    text += `• ${name} — *${data.price} XP*\n`;
-  }
-
-  text += `\n💡 Buy with:\n\`/buy Role Name\``;
+  let text = `🛒 *Role Shop*\n_Page ${page + 1}/${totalPages}_\n\n`;
+  slice.forEach(([name, { price }], i) => {
+    text += `${i + 1}. ${name} — ${price} XP\n`;
+  });
 
   const buttons = [];
-  if (page > 1) buttons.push({ text: '⬅ Prev', callback_data: `shop_${page - 1}` });
-  if (page < totalPages) buttons.push({ text: 'Next ➡', callback_data: `shop_${page + 1}` });
+  if (page > 0) buttons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
+  if (page < totalPages - 1) buttons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
 
   bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: buttons.length ? [buttons] : []
-    }
+    reply_markup: { inline_keyboard: buttons.length ? [buttons] : [] }
   });
+}
+
+// Command
+bot.onText(/\/shop/, (msg) => {
+  showShop(msg.chat.id, 0);
+});
+
+// Pagination handler
+bot.on('callback_query', async q => {
+  const data = q.data;
+  if (!data.startsWith('shop_page_')) return;
+  const page = Number(data.split('_')[2]);
+  bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
+  showShop(q.message.chat.id, page);
 });
 
 // ================= /BUY COMMAND (STRICT XP ENFORCEMENT) =================
