@@ -699,46 +699,46 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
   bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
 });
 
-// ================= /shop COMMAND =================
+// ================= /SHOP COMMAND =================
 const SHOP_PAGE_SIZE = 5;
 
-function showShop(chatId, page = 0) {
-  const allRoles = Object.entries(ROLE_SHOP);
-  const totalPages = Math.ceil(allRoles.length / SHOP_PAGE_SIZE) || 1;
-  page = Math.max(0, Math.min(page, totalPages - 1));
+bot.onText(/\/shop(?:\s+(\d+))?/i, (msg, match) => {
+  const chatId = msg.chat.id;
+  const page = Math.max(1, parseInt(match[1]) || 1);
 
-  const slice = allRoles.slice(page * SHOP_PAGE_SIZE, (page + 1) * SHOP_PAGE_SIZE);
+  ensureUser(msg.from.id, msg.from.username);
 
-  let text = `🛒 *Role Shop*\n_Page ${page + 1}/${totalPages}_\n\n`;
-  slice.forEach(([name, { price }], i) => {
-    text += `${i + 1}. ${name} — ${price} XP\n`;
-  });
+  const roles = Object.entries(ROLE_SHOP);
+  const totalPages = Math.ceil(roles.length / SHOP_PAGE_SIZE);
+
+  if (page > totalPages) {
+    return bot.sendMessage(chatId, '❌ Invalid shop page.');
+  }
+
+  const start = (page - 1) * SHOP_PAGE_SIZE;
+  const pageItems = roles.slice(start, start + SHOP_PAGE_SIZE);
+
+  let text = `🛒 *Role Shop* (Page ${page}/${totalPages})\n\n`;
+
+  for (const [name, data] of pageItems) {
+    text += `• ${name} — *${data.price} XP*\n`;
+  }
+
+  text += `\n💡 Buy with:\n\`/buy Role Name\``;
 
   const buttons = [];
-  if (page > 0) buttons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
-  if (page < totalPages - 1) buttons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
+  if (page > 1) buttons.push({ text: '⬅ Prev', callback_data: `shop_${page - 1}` });
+  if (page < totalPages) buttons.push({ text: 'Next ➡', callback_data: `shop_${page + 1}` });
 
   bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
-    reply_markup: { inline_keyboard: buttons.length ? [buttons] : [] }
+    reply_markup: {
+      inline_keyboard: buttons.length ? [buttons] : []
+    }
   });
-}
-
-// Command
-bot.onText(/\/shop/, (msg) => {
-  showShop(msg.chat.id, 0);
 });
 
-// Pagination handler
-bot.on('callback_query', async q => {
-  const data = q.data;
-  if (!data.startsWith('shop_page_')) return;
-  const page = Number(data.split('_')[2]);
-  bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
-  showShop(q.message.chat.id, page);
-});
-
-// ================= /buy COMMAND (SMART MATCHING) =================
+// ================= /BUY COMMAND =================
 bot.onText(/\/buy (.+)/i, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -746,98 +746,56 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   ensureUser(userId, msg.from.username);
   const u = users[userId];
 
-  const inputRaw = match[1].trim().toLowerCase();
+  const input = match[1].toLowerCase();
 
   const normalize = s =>
-    s.toLowerCase()
-     .replace(/[^a-z0-9]/g, '');
+    s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  const input = normalize(inputRaw);
+  const cleanInput = normalize(input);
 
-  let matches = [];
+  const matches = Object.entries(ROLE_SHOP).filter(([name]) =>
+    normalize(name).includes(cleanInput)
+  );
 
-  // 🔍 Search roles
-  for (const [name, data] of Object.entries(ROLE_SHOP)) {
-    if (normalize(name).includes(input)) {
-      matches.push({
-        type: 'role',
-        name,
-        price: data.price
-      });
-    }
-  }
-
-  // 🔍 Search cosmetics
-  for (const type of Object.keys(COSMETIC_STORE)) {
-    for (const [name, data] of Object.entries(COSMETIC_STORE[type])) {
-      if (normalize(name).includes(input)) {
-        matches.push({
-          type: 'cosmetic',
-          cosmeticType: type,
-          name,
-          price: data.price
-        });
-      }
-    }
-  }
-
-  // ❌ Nothing found
   if (matches.length === 0) {
     return bot.sendMessage(
       chatId,
-      `❌ Could not find anything matching:\n*${match[1]}*\n\nUse /shop to see available items.`,
+      `❌ No role found matching *${match[1]}*`,
       { parse_mode: 'Markdown' }
     );
   }
 
-  // ⚠️ Multiple matches → suggest
   if (matches.length > 1) {
-    let text = `🤔 *Multiple items found*\n\n`;
-    for (const m of matches) {
-      text += `• ${m.name} (${m.type}) — *${m.price} XP*\n`;
+    let text = `🤔 *Multiple roles found*\n\n`;
+    for (const [name, data] of matches) {
+      text += `• ${name} — *${data.price} XP*\n`;
     }
     text += `\nPlease type a more specific name.`;
 
     return bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   }
 
-  // ✅ Single match
-  const item = matches[0];
+  const [roleName, roleData] = matches[0];
 
-  if (u.xp < item.price) {
+  if (u.roles.includes(roleName)) {
+    return bot.sendMessage(chatId, `⚠️ You already own *${roleName}*.`);
+  }
+
+  if (u.xp < roleData.price) {
     return bot.sendMessage(
       chatId,
-      `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${item.price} XP*.`,
+      `❌ Not enough XP.\nYou have *${u.xp} XP* but need *${roleData.price} XP*.`,
       { parse_mode: 'Markdown' }
     );
   }
 
-  // 🧾 Already owned?
-  if (item.type === 'role') {
-    if (u.roles.includes(item.name)) {
-      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
-    }
-
-    u.roles.push(item.name);
-  }
-
-  if (item.type === 'cosmetic') {
-    u.cosmetics ||= {};
-    u.cosmetics[item.cosmeticType] ||= [];
-
-    if (u.cosmetics[item.cosmeticType].includes(item.name)) {
-      return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
-    }
-
-    u.cosmetics[item.cosmeticType].push(item.name);
-  }
-
-  u.xp -= item.price;
+  u.xp -= roleData.price;
+  u.roles.push(roleName);
   saveAll();
 
   bot.sendMessage(
     chatId,
-    `✅ *Purchase successful!*\n\nYou bought *${item.name}* for *${item.price} XP*.`,
+    `✅ *Purchase successful!*\nYou bought *${roleName}* for *${roleData.price} XP*.`,
     { parse_mode: 'Markdown' }
   );
 });
