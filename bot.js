@@ -72,11 +72,6 @@ function ensureUser(id, username) {
       lastSlot: 0,
       lastSpin: 0,
    
-    cosmetics: {
-        badge: null,
-        title: null,
-        frame: null
-    }
     };
   }
   if (username) users[id].username = username;
@@ -166,25 +161,6 @@ function getHighestRole(user) {
   return highest;
 }
 
-// ================= PROFILE COSMETICS =================
-const COSMETIC_STORE = {
-  badge: {
-    "✨ Star Badge": { price: 100 },
-    "🔥 Fire Badge": { price: 250 },
-    "💎 Diamond Badge": { price: 500 }
-  },
-  title: {
-    "The Grinder": { price: 300 },
-    "XP Farmer": { price: 600 },
-    "Legend": { price: 1000 }
-  },
-  frame: {
-    "🟦 Blue Frame": { price: 400 },
-    "🟥 Red Frame": { price: 700 },
-    "🟪 Purple Frame": { price: 1200 }
-  }
-};
-
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -222,14 +198,6 @@ function getLeaderboard(page = 0) {
   slice.forEach(([id, u], i) => {
     text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
   });
-
-  const buttons = [[
-    { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
-    { text: '➡ Next', callback_data: `lb_${page + 1}` }
-  ]];
-
-  return { text, buttons };
-}
 
 // ================= SEND/EDIT MAIN MENU =================
 async function sendOrEdit(id, text, opt = {}) {
@@ -272,7 +240,6 @@ async function showMainMenu(id, lbPage = 0) {
   let kb = [
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
     lb.buttons[0],
-    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
   if (ADMIN_IDS.includes(id)) {
@@ -970,9 +937,6 @@ const frame = u.cosmetics?.frame || 'None';
 📊 XP: ${xpBar(u.xp, u.level)}
 📅 Weekly XP: *${u.weeklyXp}*
 
-🎖 Badge: *${badge}*
-📛 Title: *${title}*
-🖼 Frame: *${frame}*
 📦 Orders: *${u.orders?.length || 0}*
 🚫 Banned: *${u.banned ? 'Yes' : 'No'}*
   `;
