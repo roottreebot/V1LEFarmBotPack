@@ -16,6 +16,39 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// —————————— Unified Callback Router ——————————
+
+const callbackHandlers = {};
+
+// Register a handler for a callback prefix
+function onCallback(prefix, handler) {
+  callbackHandlers[prefix] = handler;
+}
+
+bot.on('callback_query', async (q) => {
+  const chatId = q.message.chat.id;
+  const uid = q.from.id;
+  const data = q.data;
+
+  ensureUser(uid, q.from.username);
+  const u = users[uid];
+  const s = sessions[uid] || (sessions[uid] = {});
+
+  await bot.answerCallbackQuery(q.id).catch(() => {});
+
+  for (const prefix in callbackHandlers) {
+    if (data.startsWith(prefix)) {
+      try {
+        return callbackHandlers[prefix](q, data, u, s);
+      } catch (err) {
+        console.error('Callback handler error:', err);
+      }
+    }
+  }
+
+  console.log('⚠️ Unhandled callback:', data);
+});
+
 // commands
 bot.onText(/\/shop/, ...);
 bot.onText(/\/start/, ...);
@@ -295,17 +328,6 @@ bot.onText(/\/start|\/help/, async msg => {
 });
 
 // ================= CALLBACK =================
-bot.on('callback_query', async (q) => {
-  const chatId = q.message.chat.id;
-  const id = q.from.id;
-  const data = q.data;
-
-  ensureUser(id, q.from.username);
-  const u = users[id];
-  const s = sessions[id] || (sessions[id] = {});
-
-  await bot.answerCallbackQuery(q.id).catch(() => {});
-
   // ================= RELOAD MAIN MENU =================
   if (data === 'reload') {
     return showMainMenu(id, 0);
