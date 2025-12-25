@@ -723,7 +723,7 @@ bot.on('callback_query', async q => {
   showShop(q.message.chat.id, page);
 });
 
-// ================= /buy COMMAND (SMART MATCHING) =================
+// ================= /buy COMMAND (SMART MATCHING + EMOJI SUPPORT) =================
 bot.onText(/\/buy (.+)/i, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -733,9 +733,11 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
 
   const inputRaw = match[1].trim().toLowerCase();
 
+  // Normalize string: lowercase, remove spaces/punctuation but keep emoji
   const normalize = s =>
-    s.toLowerCase()
-     .replace(/[^a-z0-9]/g, '');
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\p{Emoji}]/gu, ''); // keep letters, numbers, emoji
 
   const input = normalize(inputRaw);
 
@@ -743,10 +745,11 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
 
   // 🔍 Search roles
   for (const [name, data] of Object.entries(ROLE_SHOP)) {
-    if (normalize(name).includes(input)) {
+    const normName = normalize(name);
+    if (normName.includes(input)) {
       matches.push({
         type: 'role',
-        name,
+        name: name.trim(),
         price: data.price
       });
     }
@@ -755,7 +758,8 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   // 🔍 Search cosmetics
   for (const type of Object.keys(COSMETIC_STORE)) {
     for (const [name, data] of Object.entries(COSMETIC_STORE[type])) {
-      if (normalize(name).includes(input)) {
+      const normName = normalize(name);
+      if (normName.includes(input)) {
         matches.push({
           type: 'cosmetic',
           cosmeticType: type,
@@ -802,18 +806,15 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
     if (u.roles.includes(item.name)) {
       return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
     }
-
     u.roles.push(item.name);
   }
 
   if (item.type === 'cosmetic') {
     u.cosmetics ||= {};
     u.cosmetics[item.cosmeticType] ||= [];
-
     if (u.cosmetics[item.cosmeticType].includes(item.name)) {
       return bot.sendMessage(chatId, `⚠️ You already own *${item.name}*.`);
     }
-
     u.cosmetics[item.cosmeticType].push(item.name);
   }
 
