@@ -16,12 +16,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-const ADMIN_ROLE = '👑 ADMIN';
-
-const ADMIN_IDS = process.env.ADMIN_IDS
-  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim()))
-  : [];
-
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
@@ -80,12 +74,6 @@ function ensureUser(id, username) {
     };
   }
   if (username) users[id].username = username;
-}
-
-// 🔒 Force admin role if ID is admin
-  if (ADMIN_IDS.includes(id)) {
-    users[id].role = ADMIN_ROLE;
-  }
 }
 
 // ================= XP =================
