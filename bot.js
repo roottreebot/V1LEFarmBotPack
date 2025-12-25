@@ -1,167 +1,321 @@
-== V1LE FARM BOT (FINAL – MOBILE FRIENDLY, FULL FEATURES) ===
+// === V1LE FARM BOT – FULLY MERGED, MOBILE FRIENDLY, FULL FEATURES ===
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
+const path = require('path');
 
+// ===== CONFIG =====
 const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(Number) : [];
-
-if (!TOKEN || !ADMIN_IDS.length) {
-  console.error('❌ BOT_TOKEN or ADMIN_IDS missing');
-  process.exit(1);
-}
-
-const bot = new TelegramBot(TOKEN, { polling: true });
 const BOT_START_TIME = Date.now();
+const DATA_FILE = './botdata.json';
 
-// ================= FILES =================
-const DB_FILE = 'users.json';
-const META_FILE = 'meta.json';
-const FEEDBACK_FILE = 'feedback.json';
+// ===== INITIAL DATA =====
+let users = {};
+let orders = [];
+let feedbacks = [];
+let bannedUsers = [];
+let weeklyReset = {};
 
-let users = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
-let meta = fs.existsSync(META_FILE) ? JSON.parse(fs.readFileSync(META_FILE)) : { weeklyReset: Date.now(), storeOpen: true };
-let feedback = fs.existsSync(FEEDBACK_FILE) ? JSON.parse(fs.readFileSync(FEEDBACK_FILE)) : [];
-
-function saveAll() {
-  fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
-  fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
-  fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedback, null, 2));
+// Load data from file
+if (fs.existsSync(DATA_FILE)) {
+    const raw = fs.readFileSync(DATA_FILE);
+    const json = JSON.parse(raw);
+    users = json.users || {};
+    orders = json.orders || [];
+    feedbacks = json.feedbacks || [];
+    bannedUsers = json.bannedUsers || [];
+    weeklyReset = json.weeklyReset || {};
 }
 
-// ================= USERS =================
+// Save data
+function saveData() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, orders, feedbacks, bannedUsers, weeklyReset }, null, 2));
+}
+
+// ===== HELPER FUNCTIONS =====
 function ensureUser(id, username) {
-  if (!users[id]) {
-    users[id] = {
-      xp: 0,
-      weeklyXp: 0,
-      level: 1,
-      orders: [],
-      banned: false,
-      username: username || '',
-      lastOrderAt: 0,
-      roles: [],
-      lastDaily: 0,
-      dailyStreak: 0,
-      lastSlot: 0
+    if (!users[id]) {
+        users[id] = { username, balance: 0, streak: 0, totalOrders: 0, rank: 0 };
+        saveData();
+    } else {
+        users[id].username = username; // update username
+        saveData();
+    }
+}
+
+function formatCurrency(amount) {
+    return `$${amount}`;
+}
+
+function getLeaderboard() {
+    return Object.entries(users)
+        .sort((a, b) => b[1].balance - a[1].balance)
+        .slice(0, 5)
+        .map(([id, u], i) => `${i + 1}. ${u.username || 'Unknown'} - ${formatCurrency(u.balance)}`)
+        .join('\n') || 'No users yet';
+}
+
+function getLastOrders() {
+    return orders.slice(-5).reverse().map((o, i) => `${i + 1}. ${o.username}: ${o.item}`).join('\n') || 'No orders yet';
+}
+
+function isAdmin(id) {
+    return ADMIN_IDS.includes(id);
+}
+
+function getStreak(user) {
+    return users[user]?.streak || 0;
+}
+
+// ===== BOT INIT =====
+const bot = new TelegramBot(TOKEN, { polling: true });
+
+// ===== USER COMMANDS =====
+bot.onText(/\/start/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    const streak = getStreak(id);
+    bot.sendMessage(id, `Welcome ${msg.from.username}!\nYour current streak: ${streak}\nTop 5 leaderboard:\n${getLeaderboard()}\nLast 5 orders:\n${getLastOrders()}`);
+});
+
+// /profile
+bot.onText(/\/profile/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    const u = users[id];
+    bot.sendMessage(id, `📊 Profile: ${u.username}\nBalance: ${formatCurrency(u.balance)}\nTotal Orders: ${u.totalOrders}\nStreak: ${u.streak}`);
+});
+
+// /userprofile @username
+bot.onText(/\/userprofile (.+)/, (msg, match) => {
+    const id = msg.chat.id;
+    const targetName = match[1].replace('@', '');
+    const target = Object.values(users).find(u => u.username === targetName);
+    if (!target) return bot.sendMessage(id, 'User not found.');
+    bot.sendMessage(id, `📊 Profile: ${target.username}\nBalance: ${formatCurrency(target.balance)}\nTotal Orders: ${target.totalOrders}\nStreak: ${target.streak}`);
+});
+
+// /daily
+bot.onText(/\/daily/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    const today = new Date().toDateString();
+    if (users[id].lastDaily === today) return bot.sendMessage(id, 'You have already claimed your daily reward today!');
+    users[id].lastDaily = today;
+    users[id].balance += 100;
+    users[id].streak = (users[id].streak || 0) + 1;
+    saveData();
+    bot.sendMessage(id, `You claimed your daily $100 reward!\nCurrent streak: ${users[id].streak}`);
+});
+
+// /feedback
+bot.onText(/\/feedback (.+)/, (msg, match) => {
+    const id = msg.chat.id;
+    const text = match[1];
+    feedbacks.push({ user: msg.from.username, text, date: new Date().toISOString() });
+    saveData();
+    bot.sendMessage(id, 'Feedback submitted successfully!');
+});
+
+// /clear
+bot.onText(/\/clear/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    users[id].balance = 0;
+    users[id].streak = 0;
+    users[id].totalOrders = 0;
+    saveData();
+    bot.sendMessage(id, 'Your profile has been cleared.');
+});
+
+// ===== ADMIN COMMANDS =====
+
+// /exportdb
+bot.onText(/\/exportdb/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    bot.sendDocument(id, DATA_FILE);
+});
+
+// /importdb
+bot.onText(/\/importdb/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    bot.sendMessage(id, 'Please send the JSON file to import.');
+});
+
+// /ban @username
+bot.onText(/\/ban (.+)/, (msg, match) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const targetName = match[1].replace('@', '');
+    const target = Object.entries(users).find(([uid, u]) => u.username === targetName);
+    if (!target) return bot.sendMessage(id, 'User not found.');
+    bannedUsers.push(target[0]);
+    saveData();
+    bot.sendMessage(id, `${targetName} has been banned.`);
+});
+
+// /unban @username
+bot.onText(/\/unban (.+)/, (msg, match) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const targetName = match[1].replace('@', '');
+    const target = Object.entries(users).find(([uid, u]) => u.username === targetName);
+    if (!target) return bot.sendMessage(id, 'User not found.');
+    bannedUsers = bannedUsers.filter(u => u !== target[0]);
+    saveData();
+    bot.sendMessage(id, `${targetName} has been unbanned.`);
+});
+
+// /broadcast
+bot.onText(/\/broadcast (.+)/, (msg, match) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const text = match[1];
+    Object.keys(users).forEach(uid => {
+        bot.sendMessage(uid, `📢 Broadcast:\n${text}`);
+    });
+});
+
+// /banlist
+bot.onText(/\/banlist/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const list = bannedUsers.map(u => users[u]?.username || u).join('\n') || 'No banned users.';
+    bot.sendMessage(id, `🚫 Banned Users:\n${list}`);
+});
+
+// /resetweekly
+bot.onText(/\/resetweekly/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    Object.values(users).forEach(u => u.streak = 0);
+    weeklyReset.last = new Date().toISOString();
+    saveData();
+    bot.sendMessage(id, 'Weekly streaks reset.');
+});
+
+// /activeusers
+bot.onText(/\/activeusers/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const list = Object.values(users).map(u => u.username).join('\n') || 'No active users.';
+    bot.sendMessage(id, `Active Users:\n${list}`);
+});
+
+// /userfeedback
+bot.onText(/\/userfeedback/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    const list = feedbacks.map(f => `${f.user}: ${f.text}`).join('\n') || 'No feedback yet.';
+    bot.sendMessage(id, `User Feedbacks:\n${list}`);
+});
+
+// /clearfeedback
+bot.onText(/\/clearfeedback/, (msg) => {
+    const id = msg.chat.id;
+    if (!isAdmin(id)) return;
+    feedbacks = [];
+    saveData();
+    bot.sendMessage(id, 'All feedback cleared.');
+});
+
+// /uptime
+bot.onText(/\/uptime/, (msg) => {
+    const id = msg.chat.id;
+    const diff = Date.now() - BOT_START_TIME;
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    bot.sendMessage(id, `Bot uptime: ${hours}h ${minutes}m`);
+});
+
+// ===== SHOP SYSTEM =====
+const ROLE_SHOP = {
+    VIP: { price: 500 },
+    PREMIUM: { price: 1000 }
+};
+
+bot.onText(/\/shop/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    const opts = {
+        reply_markup: {
+            inline_keyboard: Object.keys(ROLE_SHOP).map(role => [{
+                text: `${role} ($${ROLE_SHOP[role].price})`,
+                callback_data: `buy_${role}`
+            }])
+        }
     };
-  }
-  if (username) users[id].username = username;
-}
-
-function giveXP(id, xp) {
-  const u = users[id];
-  if (!u || u.banned) return;
-  u.xp += xp;
-  u.weeklyXp += xp;
-  while (u.xp >= u.level * 5) { u.xp -= u.level * 5; u.level++; }
-}
-
-function xpBar(xp, lvl) {
-  const max = lvl * 5;
-  const fill = Math.floor((xp / max) * 10);
-  return '🟩'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
-}
-
-function streakText(u) {
-  if (!u || !u.dailyStreak || u.dailyStreak < 1) return '🔥 Daily Streak: 0';
-  return `🔥 Daily Streak: ${u.dailyStreak} day${u.dailyStreak === 1 ? '' : 's'}`;
-}
-
-// ================= PRODUCTS & ROLE SHOP =================
-const PRODUCTS = { 'Jacky Ds': { price: 10 }, 'Killer Green Budz': { price: 10 } };
-const ROLE_SHOP = {"🌟 Novice":{price:50},"🌀 Initiate":{price:50},"🔥 Apprentice":{price:100},"💎 Adept":{price:200}};
-
-function getHighestRole(user){
-  if(!user.roles || !user.roles.length) return "_No role_";
-  let highest = "_No role_";
-  for(const role of Object.keys(ROLE_SHOP)) if(user.roles.includes(role)) highest=role;
-  return highest;
-}
-
-// ================= SLOTS =================
-const SLOT_COOLDOWN = 10*1000;
-const SLOT_SYMBOLS = ['🍒','🍋','🍊','🍉','⭐'];
-const ULTRA_SYMBOL='💎';
-const ULTRA_CHANCE=0.03;
-function spinReel(){return Math.random()<ULTRA_CHANCE?ULTRA_SYMBOL:SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)];}
-
-// ================= MAIN MENU =================
-const sessions={};
-async function sendOrEdit(id,text,opt={}){
-  if(!sessions[id]) sessions[id]={};
-  const mid=sessions[id].mainMsgId;
-  if(mid){
-    try{await bot.editMessageText(text,{chat_id:id,message_id:mid,...opt});return;}catch{sessions[id].mainMsgId=null;}
-  }
-  const m=await bot.sendMessage(id,text,opt);
-  sessions[id].mainMsgId=m.message_id;
-}
-
-async function showMainMenu(id){
-  ensureUser(id);
-  const u=users[id];
-  const highestRole=getHighestRole(u);
-  let orders=u.orders.length?u.orders.map(o=>`${o.status==='✅ Accepted'?'🟢':'⚪'} *${o.product}* — ${o.grams||0}g — $${o.cash||0} — *${o.status}*`).join('\n'):'_No orders yet_';
-  let kb=Object.keys(PRODUCTS).map(p=>[{text:`🪴 ${p}`,callback_data:`product_${p}`}]);
-  if(ADMIN_IDS.includes(id)){kb.push([{text:meta.storeOpen?'🔴 Close Store':'🟢 Open Store',callback_data:meta.storeOpen?'store_close':'store_open'}]);}
-  await sendOrEdit(id,`${meta.storeOpen?'🟢 Store Open':'🔴 Store Closed'}\n👑 Highest Role: *${highestRole}*\n🎚 Level: *${u.level}*\n📊 XP: ${xpBar(u.xp,u.level)}\n${streakText(u)}\n📦 Orders (last 5)\n${orders}`,{parse_mode:'Markdown',reply_markup:{inline_keyboard:kb}});
-}
-
-bot.onText(/\/start|\/help/,msg=>showMainMenu(msg.chat.id));
-
-// ================= CALLBACKS =================
-bot.on('callback_query',async q=>{
-  const id=q.message.chat.id; ensureUser(id,q.from.username); const s=sessions[id]||(sessions[id]={});
-  await bot.answerCallbackQuery(q.id).catch(()=>{});
-  if(q.data==='reload') return showMainMenu(id);
-  if(q.data==='store_open' && ADMIN_IDS.includes(id)){meta.storeOpen=true; saveAll(); return showMainMenu(id);}
-  if(q.data==='store_close' && ADMIN_IDS.includes(id)){meta.storeOpen=false; saveAll(); return showMainMenu(id);}
-  if(q.data.startsWith('product_')){
-    if(!meta.storeOpen) return bot.answerCallbackQuery(q.id,{text:'🛑 Store is closed!',show_alert:true});
-    if(Date.now()-(s.lastClick||0)<30000) return bot.answerCallbackQuery(q.id,{text:'Please wait before clicking again',show_alert:true});
-    s.lastClick=Date.now(); s.product=q.data.replace('product_',''); s.step='amount';
-    return sendOrEdit(id,`✏️ Send grams or $ amount for *${s.product}*`);
-  }
+    bot.sendMessage(id, '🛒 Shop:', opts);
 });
 
-// ================= USER MESSAGES =================
-bot.on('message',msg=>{
-  const id=msg.chat.id; ensureUser(id,msg.from.username); const s=sessions[id];
-  if(!s || s.step!=='amount') return;
-  const text=msg.text?.trim(); if(!text) return;
-  const price=PRODUCTS[s.product].price;
-  let grams,cash;
-  if(text.startsWith('$')){cash=parseFloat(text.slice(1)); grams=+(cash/price).toFixed(1);} else {grams=Math.round(parseFloat(text)*2)/2; cash=+(grams*price).toFixed(2);}
-  if(!grams || grams<2) return;
-  s.grams=grams; s.cash=cash;
-  sendOrEdit(id,`🧾 *Order Summary*\n🌿 *${s.product}*\n⚖️ ${grams}g\n💲 $${cash}`,{reply_markup:{inline_keyboard:[[{text:'✅ Confirm',callback_data:'confirm_order'}],[{text:'🏠 Back to Menu',callback_data:'reload'}]]},parse_mode:'Markdown'});
+bot.on('callback_query', (q) => {
+    const id = q.message.chat.id;
+    ensureUser(id, q.from.username);
+    const data = q.data;
+    if (data.startsWith('buy_')) {
+        const role = data.split('_')[1];
+        const price = ROLE_SHOP[role].price;
+        if (users[id].balance < price) return bot.answerCallbackQuery(q.id, { text: 'Not enough balance!' });
+        users[id].balance -= price;
+        orders.push({ username: users[id].username, item: role, date: new Date().toISOString() });
+        users[id].totalOrders += 1;
+        saveData();
+        bot.answerCallbackQuery(q.id, { text: `You bought ${role}!` });
+        bot.sendMessage(id, `✅ You purchased ${role} for $${price}`);
+    }
 });
 
-// ================= /profile =================
-bot.onText(/\/profile/,msg=>{
-  const id=msg.chat.id; const uid=msg.from.id; ensureUser(uid,msg.from.username);
-  const u=users[uid];
-  bot.sendMessage(id,`👤 *User Profile*\n🆔 ID: \`${uid}\`\n👑 Level: *${u.level}*\n📊 XP: ${xpBar(u.xp,u.level)}\n📅 Weekly XP: *${u.weeklyXp}*\n🔥 Daily Streak: ${u.dailyStreak || 0}\n📦 Orders: *${u.orders?.length || 0}*\n🚫 Banned: *${u.banned?'Yes':'No'}*`,{parse_mode:'Markdown'});
+// ===== SLOTS SYSTEM =====
+const SLOT_COOLDOWN = 10 * 1000;
+const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
+const ULTRA_SYMBOL = '💎';
+let lastSlot = {};
+
+bot.onText(/\/slots (\d+)/, (msg, match) => {
+    const id = msg.chat.id;
+    const amount = parseInt(match[1]);
+    ensureUser(id, msg.from.username);
+    if (!amount || amount <= 0) return bot.sendMessage(id, 'Invalid bet.');
+    if (users[id].balance < amount) return bot.sendMessage(id, 'Not enough balance.');
+    const now = Date.now();
+    if (lastSlot[id] && now - lastSlot[id] < SLOT_COOLDOWN) return bot.sendMessage(id, 'Cooldown active!');
+    lastSlot[id] = now;
+
+    const spin = () => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    const result = [spin(), spin(), spin()];
+    let win = 0;
+    if (result[0] === result[1] && result[1] === result[2]) {
+        win = amount * (result[0] === ULTRA_SYMBOL ? 10 : 2);
+    }
+    users[id].balance += win - amount;
+    saveData();
+    bot.sendMessage(id, `🎰 ${result.join(' ')}\n${win ? `You won $${win}!` : `You lost $${amount}`}`);
 });
 
-// ================= /daily =================
-bot.onText(/\/daily/,msg=>{
-  const id=msg.chat.id; ensureUser(id,msg.from.username);
-  const u=users[id]; const now=Date.now();
-  if(now-u.lastDaily<24*60*60*1000) return bot.sendMessage(id,`❌ You have already claimed daily. Next in ${(24*60*60*1000-(now-u.lastDaily))/3600000}h`);
-  if(now-u.lastDaily<48*60*60*1000){u.dailyStreak++;} else {u.dailyStreak=1;}
-  u.lastDaily=now; const reward=10+u.dailyStreak*2; giveXP(id,reward); saveAll(); bot.sendMessage(id,`✅ Daily claimed! +${reward} XP\n🔥 Current streak: ${u.dailyStreak} day${u.dailyStreak===1?'':'s'}`);
+// ===== BLACKJACK PLACEHOLDER =====
+bot.onText(/\/blackjack (\d+)/, (msg, match) => {
+    const id = msg.chat.id;
+    const bet = parseInt(match[1]);
+    ensureUser(id, msg.from.username);
+    if (!bet || bet <= 0) return bot.sendMessage(id, 'Invalid bet.');
+    if (users[id].balance < bet) return bot.sendMessage(id, 'Not enough balance.');
+    const win = Math.random() < 0.5;
+    users[id].balance += win ? bet : -bet;
+    saveData();
+    bot.sendMessage(id, `🃏 Blackjack: ${win ? `You won $${bet}!` : `You lost $${bet}`}`);
 });
 
-// ================= /userprofile =================
-bot.onText(/\/userprofile\s+@?(\w+)/,msg=>{
-  const id=msg.chat.id; const uname=msg.match[1].toLowerCase();
-  const uid=Object.keys(users).find(k=>users[k].username?.toLowerCase()===uname);
-  if(!uid) return bot.sendMessage(id,'❌ User not found');
-  const u=users[uid];
-  bot.sendMessage(id,`👤 *User Profile*\n🆔 ID: \`${uid}\`\n👑 Level: *${u.level}*\n📊 XP: ${xpBar(u.xp,u.level)}\n📅 Weekly XP: *${u.weeklyXp}*\n🔥 Daily Streak: ${u.dailyStreak || 0}\n📦 Orders: *${u.orders?.length || 0}*\n🚫 Banned: *${u.banned?'Yes':'No'}*`,{parse_mode:'Markdown'});
+// ===== SPIN COMMAND =====
+bot.onText(/\/spin/, (msg) => {
+    const id = msg.chat.id;
+    ensureUser(id, msg.from.username);
+    const prizes = [50, 100, 200, 500];
+    const prize = prizes[Math.floor(Math.random() * prizes.length)];
+    users[id].balance += prize;
+    saveData();
+    bot.sendMessage(id, `🎡 You spun the wheel and won $${prize}!`);
 });
 
-// ================= EXPORT/IMPORT =================
-bot.onText(/\/exportdb/,msg=>{if(!ADMIN_IDS.includes(msg.chat.id)) return; bot.sendDocument(msg.chat.id,DB_FILE);});
-bot.onText(/\/importdb/,msg=>{if(!ADMIN_IDS.includes(msg.chat.id)) return; const file=DB_FILE; if(fs.existsSync(file)){users=JSON.parse(fs.readFileSync(file)); saveAll(); bot.sendMessage(msg.chat.id,'✅ DB imported');}});
+console.log('✅ V1LE FARM BOT is running...');
