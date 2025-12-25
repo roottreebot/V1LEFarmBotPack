@@ -16,6 +16,35 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// ===== GLOBAL STATE =====
+const users = {};
+const sessions = {};
+const lastMessages = {}; // 👈 REQUIRED
+
+async function sendOrEdit(chatId, text, options = {}) {
+  if (!lastMessages[chatId]) {
+    const m = await bot.sendMessage(chatId, text, options);
+    lastMessages[chatId] = m.message_id;
+  } else {
+    bot.editMessageText(text, {
+      chat_id: chatId,
+      message_id: lastMessages[chatId],
+      ...options
+    }).catch(() => {});
+  }
+}
+
+// commands
+bot.onText(/\/shop/, ...);
+bot.onText(/\/start/, ...);
+
+// callback_query
+bot.on('callback_query', ...);
+
+// other functions
+function showShop(...) { ... }
+function showMainMenu(...) { ... }
+
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
@@ -65,13 +94,13 @@ function ensureUser(id, username) {
       username: username || '',
       lastOrderAt: 0,
       roles: [],
-
+      
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
       dailyStreak: 0,
       lastSlot: 0,
       lastSpin: 0,
-
+   
     cosmetics: {
         badge: null,
         title: null,
@@ -156,7 +185,7 @@ function getHighestRole(user) {
 
   // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
-
+  
   // Find the highest role the user owns
   let highest = "_No role_";
   for (const role of roleNames) {
@@ -242,29 +271,18 @@ async function showMainMenu(id, lbPage = 0) {
   const u = users[id];
   const highestRole = getHighestRole(u);
 
-  // Format last 5 orders
   const orders = u.orders.length
     ? u.orders.slice(-5).map(o =>
         `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
       ).join('\n')
     : '_No orders yet_';
 
-  // Leaderboard
   const lb = getLeaderboard(lbPage);
 
-  // Build keyboard
   const kb = [
-    // Products
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
-
-    // Leaderboard navigation buttons
-    ...lb.buttons,
-
-    // Reload menu button
-    [{ text: '🔄 Reload Menu', callback_data: 'reload' }]
   ];
 
-  // Admin store controls
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
       ? { text: '🔴 Close Store', callback_data: 'store_close' }
@@ -274,7 +292,6 @@ async function showMainMenu(id, lbPage = 0) {
 
   const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
 
-  // Send or edit menu
   await sendOrEdit(
     id,
 `${storeStatus}
@@ -305,52 +322,33 @@ bot.on('callback_query', async (q) => {
 
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
-  // ================== CHANGE ROLE ==================
-  if (data === 'change_role') {
-    const availableRoles = Object.keys(ROLE_SHOP).map(r => [{ text: `${r} ($${ROLE_SHOP[r].price})`, callback_data: `role_${r}` }]);
-    return sendOrEdit(id, '🎭 Select a role to change:', {
-      message_id: q.message.message_id,
-      reply_markup: { inline_keyboard: availableRoles }
-    });
-  }
-
-  if (data.startsWith('role_')) {
-    const role = data.replace('role_', '');
-    if (!ROLE_SHOP[role]) return bot.answerCallbackQuery(q.id, { text: '❌ Invalid role', show_alert: true });
-
-    if (!u.roles.includes(role)) {
-      u.roles.push(role);
-      saveAll();
-      return sendOrEdit(id, `✅ Your new role: *${role}*`, { message_id: q.message.message_id, parse_mode: 'Markdown' });
-    } else {
-      return bot.answerCallbackQuery(q.id, { text: '❌ You already have this role', show_alert: true });
-    }
-  }
-
-  // ================== REFRESH MAIN MENU ==================
-  if (data === 'reload') return showMainMenu(id, q.message.message_id);
-
   // ================== SHOP PAGINATION ==================
-  if (data.startsWith('shop_page_')) {
-    const page = Number(data.split('_')[2]);
-    return showShop(id, page, q.message.message_id);
-  }
+if (data.startsWith('shop_page_')) {
+  const page = Number(data.split('_')[2]);
+  return showShop(id, page);
+}
 
-  // ================== BUY ROLE ==================
-  if (data.startsWith('buyrole_')) {
-    const role = data.replace('buyrole_', '');
-    const price = ROLE_SHOP[role]?.price;
-    if (!price) return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
-    if (u.xp < price) return bot.answerCallbackQuery(q.id, { text: 'Not enough XP!', show_alert: true });
-    if (u.roles.includes(role)) return bot.answerCallbackQuery(q.id, { text: 'You already own this role!', show_alert: true });
+// ================== BUY ROLE ==================
+if (data.startsWith('buyrole_')) {
+  const role = data.replace('buyrole_', '');
+  const roleData = ROLE_SHOP[role];
 
-    u.xp -= price;
-    u.roles.push(role);
-    saveAll();
+  if (!roleData)
+    return bot.answerCallbackQuery(q.id, { text: 'Role not found!', show_alert: true });
 
-    bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role} for ${price} XP!` });
-    return showShop(id, 0, q.message.message_id);
-  }
+  if (u.roles.includes(role))
+    return bot.answerCallbackQuery(q.id, { text: 'You already own this role!', show_alert: true });
+
+  if (u.xp < roleData.price)
+    return bot.answerCallbackQuery(q.id, { text: 'Not enough XP!', show_alert: true });
+
+  u.xp -= roleData.price;
+  u.roles.push(role);
+  saveAll();
+
+  bot.answerCallbackQuery(q.id, { text: `✅ Purchased ${role}!` });
+  return showShop(id, 0);
+}
 
   // ================== LEADERBOARD PAGINATION ==================
   if (data.startsWith('lb_')) {
@@ -435,7 +433,7 @@ bot.on('callback_query', async (q) => {
     return showMainMenu(userId, q.message.message_id);
   }
 });
-
+  
 // ================= USER INPUT =================
 bot.on('message', msg => {
   const id = msg.chat.id;
@@ -748,17 +746,16 @@ function showShop(chatId, page = 0) {
 
   slice.forEach(([name, { price }], i) => {
     text += `${i + 1}. ${name} — ${price} XP\n`;
-    // Buy button
     buttons.push([{ text: `💰 Buy ${name}`, callback_data: `buyrole_${name}` }]);
   });
 
-  // Pagination buttons
   const navButtons = [];
   if (page > 0) navButtons.push({ text: '⬅ Prev', callback_data: `shop_page_${page - 1}` });
   if (page < totalPages - 1) navButtons.push({ text: '➡ Next', callback_data: `shop_page_${page + 1}` });
   if (navButtons.length) buttons.push(navButtons);
 
-  bot.sendMessage(chatId, text, {
+  // ✅ THIS LINE FIXES DEAD BUTTONS
+  sendOrEdit(chatId, text, {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: buttons }
   });
