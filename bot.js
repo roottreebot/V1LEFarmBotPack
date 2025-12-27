@@ -864,6 +864,79 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   );
 });
 
+// ================= /userhelp =============
+bot.onText(/\/userhelp/, async (msg) => {
+  const id = msg.chat.id;
+  const cmdMsgId = msg.message_id;
+
+  const text = `
+👤 *USER COMMANDS*
+
+🏅 /rank — View your rank & XP
+
+🃏 /blackjack (10) — Play blackjack (10 XP)
+🎰 /slots (10) — Play slots (10 XP)
+🎡 /spin — Spin the wheel
+
+🎁 /daily — Claim daily reward
+
+🧹 /clear — Clear your messages / session
+
+💬 /feedback <text> — Send feedback to admins
+
+🧾 /userprofile — View your profile
+
+🛒 /shop — View shop
+🛍 /buy — Buy from shop
+`;
+
+  const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+
+  // ⏳ Auto-delete BOTH messages after 10s
+  setTimeout(() => {
+    bot.deleteMessage(id, sent.message_id).catch(() => {});
+    bot.deleteMessage(id, cmdMsgId).catch(() => {});
+  }, 10000);
+});
+
+// ================= /adminhelp =============
+bot.onText(/\/adminhelp/, async (msg) => {
+  const id = msg.chat.id;
+
+  if (!ADMIN_IDS.includes(id)) {
+    return bot.sendMessage(id, '❌ You are not authorized.');
+  }
+
+  const text = `
+🏆 *ADMIN COMMANDS*
+
+📦 /exportdb — Export database
+📥 /importdb — Import database
+
+🚫 /ban @user — Ban a user
+✅ /unban @user — Unban a user
+📋 /banlist — View banned users
+
+📢 /broadcast <msg> — Message all users
+
+🔄 /resetweekly — Reset weekly stats
+👥 /activeusers — Show active users
+
+💬 /userfeedback — View feedback
+🧹 /clearfeedback — Clear feedback
+
+⏱ /uptime — Bot uptime
+🗑 /clearpending — Clear ALL pending orders
+`;
+
+  const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+
+  // ⏳ Auto-hide after 10 seconds
+  setTimeout(() => {
+    bot.deleteMessage(id, sent.message_id).catch(() => {});
+  }, 10000);
+});
+
 // ================= /slots (ANIMATED + ULTRA) =================
 bot.onText(/\/slots (\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
