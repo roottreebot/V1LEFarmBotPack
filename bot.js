@@ -1027,7 +1027,7 @@ bot.onText(/\/draw/, async (msg) => {
   const role = meta.lottery.role;
   const entries = meta.lottery.entries;
 
-  // Emoji themes by role type
+  // Emoji themes
   let emojis = ['🎉', '✨', '💎', '🚀', '🔥', '🌟', '🎁', '🍀', '💫'];
   if (role.toLowerCase().includes('legendary') || role.toLowerCase().includes('💎')) {
     emojis = ['💎', '✨', '🌟', '🎆', '🚀'];
@@ -1037,7 +1037,7 @@ bot.onText(/\/draw/, async (msg) => {
     emojis = ['🎁', '🍀', '✨', '💫', '🌟'];
   }
 
-  const spins = 25; // number of frames
+  const spins = 25; // frames
   const delay = 150; // ms per frame
 
   let displayMsg = await bot.sendMessage(id, '🎰 Spinning the lottery...');
@@ -1071,22 +1071,22 @@ bot.onText(/\/draw/, async (msg) => {
   meta.lottery.role = null;
   saveAll();
 
-  // Announce winner
+  // Edit message to announce winner
   await bot.editMessageText(
-    `🏆 The lottery is over!\n🎉 Winner: @${users[winnerId].username || winnerId}\nRole: ${role}`,
+    `🏆 The lottery is over!\n🎉 Winner: @${users[winnerId].username || winnerId}\nRole won: ${role}`,
     {
       chat_id: id,
       message_id: displayMsg.message_id
     }
   );
 
-  // Delete winner announcement after 10 seconds
+  // Delete the announcement after 10 seconds
   setTimeout(() => {
     bot.deleteMessage(id, displayMsg.message_id).catch(() => {});
   }, 10000);
 
   // Notify winner privately
-  bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received role: ${role}`);
+  bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received the role: ${role}`);
 });
 
 // ================= /slots (ANIMATED + ULTRA) =================
