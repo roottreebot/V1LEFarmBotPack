@@ -615,6 +615,33 @@ bot.onText(/\/clearpending/, (msg) => {
   });
 });
 
+// ================= /removerole =================
+bot.onText(/\/removerole (@\w+)\s+(.+)/, (msg, match) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return bot.sendMessage(adminId, '❌ You are not authorized.');
+
+  const username = match[1].replace('@', '');
+  const roleToRemove = match[2].trim();
+
+  // Find user by username
+  const userId = Object.keys(users).find(id => users[id].username === username);
+  if (!userId) return bot.sendMessage(adminId, `❌ User @${username} not found.`);
+
+  ensureUser(userId, username);
+  users[userId].roles = users[userId].roles || [];
+
+  if (!users[userId].roles.includes(roleToRemove)) {
+    return bot.sendMessage(adminId, `ℹ️ User @${username} does not have the role: ${roleToRemove}`);
+  }
+
+  // Remove role
+  users[userId].roles = users[userId].roles.filter(r => r !== roleToRemove);
+  saveAll();
+
+  bot.sendMessage(adminId, `✅ Removed role '${roleToRemove}' from @${username}`);
+  bot.sendMessage(userId, `⚠️ The admin removed your role: ${roleToRemove}`);
+});
+
 // ================= /rank COMMAND (with XP bars) =================
 bot.onText(/\/rank(?:\s+@?(\w+))?/, (msg, match) => {
   const chatId = msg.chat.id;
