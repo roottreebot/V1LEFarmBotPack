@@ -553,6 +553,48 @@ bot.on('callback_query', async (q) => {
   }
 });
 
+// ================= /clearpending =================
+bot.onText(/\/clearpending/, (msg) => {
+  const chatId = msg.chat.id;
+
+  if (!ADMIN_IDS.includes(chatId)) {
+    return bot.sendMessage(chatId, '❌ You are not authorized.');
+  }
+
+  bot.sendMessage(chatId, '⚠️ Are you sure you want to clear ALL pending orders?', {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '✅ YES, CLEAR', callback_data: 'confirm_clear_pending' },
+        { text: '❌ Cancel', callback_data: 'cancel_clear_pending' }
+      ]]
+    }
+  });
+});
+
+bot.on('callback_query', (q) => {
+  const chatId = q.message.chat.id;
+
+  if (!ADMIN_IDS.includes(chatId)) return;
+
+  if (q.data === 'confirm_clear_pending') {
+    const count = pendingOrders.length || Object.keys(pendingOrders).length || 0;
+    pendingOrders = Array.isArray(pendingOrders) ? [] : {};
+    saveDB();
+
+    bot.editMessageText(`✅ Cleared ${count} pending orders.`, {
+      chat_id: chatId,
+      message_id: q.message.message_id
+    });
+  }
+
+  if (q.data === 'cancel_clear_pending') {
+    bot.editMessageText('❌ Clear cancelled.', {
+      chat_id: chatId,
+      message_id: q.message.message_id
+    });
+  }
+});
+
 // ================= /rank COMMAND (with XP bars) =================
 bot.onText(/\/rank(?:\s+@?(\w+))?/, (msg, match) => {
   const chatId = msg.chat.id;
