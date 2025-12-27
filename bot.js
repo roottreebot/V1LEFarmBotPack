@@ -37,6 +37,14 @@ let meta = fs.existsSync(META_FILE)
   ? JSON.parse(fs.readFileSync(META_FILE))
   : { weeklyReset: Date.now(), storeOpen: true };
 
+if (!meta.lottery) {
+  meta.lottery = {
+    active: false,
+    role: null,
+    entries: []
+  };
+}
+
 function saveAll() {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
   fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2));
@@ -938,53 +946,6 @@ bot.onText(/\/adminhelp/, async (msg) => {
 });
 
 // ================= /drawlottery =================
-bot.onText(/\/drawlottery/, (msg) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
-
-  if (!meta.lottery || !meta.lottery.active || meta.lottery.entries.length === 0) {
-    return bot.sendMessage(id, 'ℹ️ No active lottery or no entries.');
-  }
-
-  // Pick random winner
-  const winnerId = meta.lottery.entries[Math.floor(Math.random() * meta.lottery.entries.length)];
-
-  // Give role
-  const role = meta.lottery.role;
-  users[winnerId].roles = users[winnerId].roles || [];
-  if (!users[winnerId].roles.includes(role)) users[winnerId].roles.push(role);
-
-  saveAll();
-
-  // Announce
-  bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received role: ${role}`);
-  bot.sendMessage(id, `🏆 Lottery winner: @${users[winnerId].username || winnerId}\nRole: ${role}`);
-
-  // Close lottery
-  meta.lottery.active = false;
-  saveAll();
-});
-
-// ================= /makelottery =================
-bot.onText(/\/makelottery (.+)/, (msg, match) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
-
-  const role = match[1].trim();
-  if (!role) return bot.sendMessage(id, '❌ You must specify a role for the lottery.');
-
-  // Initialize lottery
-  meta.lottery = {
-    role,
-    entries: [],
-    active: true
-  };
-
-  saveAll();
-  bot.sendMessage(id, `🎟 Lottery created! Role: ${role}\nUsers can now enter with /lottery`);
-});
-
-// ================= /lottery =================
 bot.onText(/\/drawlottery/, async (msg) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
@@ -996,9 +957,8 @@ bot.onText(/\/drawlottery/, async (msg) => {
   const role = meta.lottery.role;
   const entries = meta.lottery.entries;
 
-  // 🎨 Emoji themes by role type
-  let emojis = ['🎉', '✨', '💎', '🚀', '🔥', '🌟', '🎁', '🍀', '💫']; // default
-
+  // Emoji themes by role type
+  let emojis = ['🎉', '✨', '💎', '🚀', '🔥', '🌟', '🎁', '🍀', '💫'];
   if (role.toLowerCase().includes('legendary') || role.toLowerCase().includes('💎')) {
     emojis = ['💎', '✨', '🌟', '🎆', '🚀'];
   } else if (role.toLowerCase().includes('high')) {
@@ -1007,14 +967,11 @@ bot.onText(/\/drawlottery/, async (msg) => {
     emojis = ['🎁', '🍀', '✨', '💫', '🌟'];
   }
 
-  // Animation settings
-  const spins = 25;         // Number of animation frames
-  const delay = 150;        // Delay per frame in ms (shorter = faster, longer = slower)
+  const spins = 25; // Number of frames
+  const delay = 150; // ms per frame
 
-  // Send initial message
   let displayMsg = await bot.sendMessage(id, '🎰 Spinning the lottery...');
 
-  // Animate spins
   for (let i = 0; i < spins; i++) {
     const randomId = entries[Math.floor(Math.random() * entries.length)];
     const displayName = `@${users[randomId].username || randomId}`;
@@ -1036,7 +993,6 @@ bot.onText(/\/drawlottery/, async (msg) => {
   meta.lottery.active = false;
   saveAll();
 
-  // Show final winner
   await bot.editMessageText(
     `🏆 The lottery is over!\n🎉 Winner: @${users[winnerId].username || winnerId}\nRole: ${role}`,
     {
@@ -1045,8 +1001,44 @@ bot.onText(/\/drawlottery/, async (msg) => {
     }
   );
 
-  // Notify winner privately
   bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received role: ${role}`);
+});
+
+// ================= /makelottery =================
+bot.onText(/\/makelottery (.+)/, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
+
+  const role = match[1].trim();
+  if (!role) return bot.sendMessage(id, '❌ You must specify a role for the lottery.');
+
+  meta.lottery = {
+    active: true,
+    role,
+    entries: []
+  };
+
+  saveAll();
+  bot.sendMessage(id, `🎟 Lottery created! Role: ${role}\nUsers can now enter with /lottery`);
+});
+
+// ================= /lottery =================
+bot.onText(/\/lottery/, (msg) => {
+  const id = msg.chat.id;
+  ensureUser(id, msg.from.username);
+
+  if (!meta.lottery || !meta.lottery.active) {
+    return bot.sendMessage(id, 'ℹ️ No lottery is currently active.');
+  }
+
+  if (meta.lottery.entries.includes(id)) {
+    return bot.sendMessage(id, '❌ You have already entered this lottery.');
+  }
+
+  meta.lottery.entries.push(id);
+  saveAll();
+
+  bot.sendMessage(id, `✅ You have entered the lottery for role: ${meta.lottery.role}`);
 });
 
 // ================= /slots (ANIMATED + ULTRA) =================
