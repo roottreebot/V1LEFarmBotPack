@@ -257,7 +257,7 @@ async function showMainMenu(id, lbPage = 0) {
     kb.push([storeBtn]);
   }
 
-  const storeStatus = meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed';
+  const storeStatus = meta.storeOpen ? '🟢 *Store Open*' : '🔴 *Store Closed*';
 
   await sendOrEdit(
     id,
