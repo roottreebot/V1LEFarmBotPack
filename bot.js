@@ -101,7 +101,7 @@ function streakText(u) {
   if (!u || !u.dailyStreak || u.dailyStreak < 1) {
     return '🔥 Daily Streak: 0 ';
   }
-  return `🔥 Daily Streak: ${u.dailyStreak} day${u.dailyStreak === 1 ? '' : 's'}`;
+  return `🔥 /Daily *Streak*: ${u.dailyStreak} day${u.dailyStreak === 1 ? '' : 's'}`;
 }
 
 // ================= PRODUCTS =================
@@ -263,9 +263,9 @@ async function showMainMenu(id, lbPage = 0) {
     id,
 `${storeStatus}
 
-👑 Highest Role: *${highestRole}*
+👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
-📊 XP: ${xpBar(u.xp, u.level)}
+📊 *XP*: ${xpBar(u.xp, u.level)}
 ${streakText(u)}
 
 📦 *Your Orders* (last 5)
