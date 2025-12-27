@@ -114,7 +114,7 @@ function streakText(u) {
 
 // ================= PRODUCTS =================
 const PRODUCTS = {
-  'Jacky Ds': { price: 10 },
+  'Sprite Popperz': { price: 10 },
   'Killer Green Budz': { price: 10 }
 };
 
