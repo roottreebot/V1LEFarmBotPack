@@ -937,6 +937,118 @@ bot.onText(/\/adminhelp/, async (msg) => {
   }, 10000);
 });
 
+// ================= /drawlottery =================
+bot.onText(/\/drawlottery/, (msg) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
+
+  if (!meta.lottery || !meta.lottery.active || meta.lottery.entries.length === 0) {
+    return bot.sendMessage(id, 'ℹ️ No active lottery or no entries.');
+  }
+
+  // Pick random winner
+  const winnerId = meta.lottery.entries[Math.floor(Math.random() * meta.lottery.entries.length)];
+
+  // Give role
+  const role = meta.lottery.role;
+  users[winnerId].roles = users[winnerId].roles || [];
+  if (!users[winnerId].roles.includes(role)) users[winnerId].roles.push(role);
+
+  saveAll();
+
+  // Announce
+  bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received role: ${role}`);
+  bot.sendMessage(id, `🏆 Lottery winner: @${users[winnerId].username || winnerId}\nRole: ${role}`);
+
+  // Close lottery
+  meta.lottery.active = false;
+  saveAll();
+});
+
+// ================= /makelottery =================
+bot.onText(/\/makelottery (.+)/, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
+
+  const role = match[1].trim();
+  if (!role) return bot.sendMessage(id, '❌ You must specify a role for the lottery.');
+
+  // Initialize lottery
+  meta.lottery = {
+    role,
+    entries: [],
+    active: true
+  };
+
+  saveAll();
+  bot.sendMessage(id, `🎟 Lottery created! Role: ${role}\nUsers can now enter with /lottery`);
+});
+
+// ================= /lottery =================
+bot.onText(/\/drawlottery/, async (msg) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return bot.sendMessage(id, '❌ You are not authorized.');
+
+  if (!meta.lottery || !meta.lottery.active || meta.lottery.entries.length === 0) {
+    return bot.sendMessage(id, 'ℹ️ No active lottery or no entries.');
+  }
+
+  const role = meta.lottery.role;
+  const entries = meta.lottery.entries;
+
+  // 🎨 Emoji themes by role type
+  let emojis = ['🎉', '✨', '💎', '🚀', '🔥', '🌟', '🎁', '🍀', '💫']; // default
+
+  if (role.toLowerCase().includes('legendary') || role.toLowerCase().includes('💎')) {
+    emojis = ['💎', '✨', '🌟', '🎆', '🚀'];
+  } else if (role.toLowerCase().includes('high')) {
+    emojis = ['🚀', '🔥', '🌟', '💫', '🎉'];
+  } else if (role.toLowerCase().includes('rare')) {
+    emojis = ['🎁', '🍀', '✨', '💫', '🌟'];
+  }
+
+  // Animation settings
+  const spins = 25;         // Number of animation frames
+  const delay = 150;        // Delay per frame in ms (shorter = faster, longer = slower)
+
+  // Send initial message
+  let displayMsg = await bot.sendMessage(id, '🎰 Spinning the lottery...');
+
+  // Animate spins
+  for (let i = 0; i < spins; i++) {
+    const randomId = entries[Math.floor(Math.random() * entries.length)];
+    const displayName = `@${users[randomId].username || randomId}`;
+    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+    await bot.editMessageText(`🎰 Spinning the lottery...\n${randomEmoji} ${displayName} ${randomEmoji}`, {
+      chat_id: id,
+      message_id: displayMsg.message_id
+    });
+
+    await new Promise(res => setTimeout(res, delay));
+  }
+
+  // Pick winner
+  const winnerId = entries[Math.floor(Math.random() * entries.length)];
+  users[winnerId].roles = users[winnerId].roles || [];
+  if (!users[winnerId].roles.includes(role)) users[winnerId].roles.push(role);
+
+  meta.lottery.active = false;
+  saveAll();
+
+  // Show final winner
+  await bot.editMessageText(
+    `🏆 The lottery is over!\n🎉 Winner: @${users[winnerId].username || winnerId}\nRole: ${role}`,
+    {
+      chat_id: id,
+      message_id: displayMsg.message_id
+    }
+  );
+
+  // Notify winner privately
+  bot.sendMessage(winnerId, `🎉 Congratulations! You won the lottery and received role: ${role}`);
+});
+
 // ================= /slots (ANIMATED + ULTRA) =================
 bot.onText(/\/slots (\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
