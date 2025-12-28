@@ -641,14 +641,40 @@ bot.on('callback_query', async (q) => {
 });
 
 // ================= /clearpending =================
-bot.onText(/\/clearpending/, (msg) => {
-  const id = msg.chat.id;
+bot.onText(/\/clearpending(?:\s+@(\w+))?/, (msg, match) => {
+  const chatId = msg.chat.id;
 
-  if (!ADMIN_IDS.includes(id)) {
-    return bot.sendMessage(id, '❌ You are not authorized.');
+  if (!ADMIN_IDS.includes(chatId)) {
+    return bot.sendMessage(chatId, '❌ You are not authorized.');
   }
 
-  bot.sendMessage(id, '⚠️ This will clear ALL pending orders.\nAre you sure?', {
+  const username = match[1];
+
+  // 🔹 CLEAR SINGLE USER
+  if (username) {
+    const userId = Object.keys(users).find(
+      id => users[id].username?.toLowerCase() === username.toLowerCase()
+    );
+
+    if (!userId) {
+      return bot.sendMessage(chatId, `❌ User @${username} not found.`);
+    }
+
+    if (!users[userId].pending || users[userId].pending.length === 0) {
+      return bot.sendMessage(chatId, `ℹ️ @${username} has no pending orders.`);
+    }
+
+    users[userId].pending = [];
+    saveUsers();
+
+    return bot.sendMessage(
+      chatId,
+      `✅ Cleared all pending orders for @${username}`
+    );
+  }
+
+  // 🔹 CLEAR ALL (CONFIRMATION)
+  bot.sendMessage(chatId, '⚠️ This will clear ALL pending orders.\nAre you sure?', {
     reply_markup: {
       inline_keyboard: [
         [{ text: '✅ YES, CLEAR ALL', callback_data: 'clearpending_confirm' }],
