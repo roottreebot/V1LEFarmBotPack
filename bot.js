@@ -1764,6 +1764,53 @@ Come back tomorrow to keep the streak alive!`,
   );
 });
 
+// ================= /givewxp =================
+bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) {
+    return bot.sendMessage(adminId, '❌ You are not authorized.');
+  }
+
+  const username = match[1].replace('@', '').toLowerCase();
+  const amount = Number(match[2]);
+
+  if (amount <= 0) {
+    return bot.sendMessage(adminId, '❌ XP amount must be greater than 0.');
+  }
+
+  // Find user by username
+  const userId = Object.keys(users).find(
+    id => users[id].username?.toLowerCase() === username
+  );
+
+  if (!userId) {
+    return bot.sendMessage(adminId, `❌ User @${username} not found.`);
+  }
+
+  ensureUser(userId, users[userId].username);
+
+  // ✅ GIVE WEEKLY XP (LEADERBOARD XP)
+  users[userId].weeklyXp += amount;
+  saveAll();
+
+  // Admin confirmation
+  bot.sendMessage(
+    adminId,
+    `✅ Gave ${amount} weekly XP to @${username}.`
+  );
+
+  // Notify user (auto delete)
+  const notice = await bot.sendMessage(
+    userId,
+    `📊 You received **+${amount} Weekly XP**!\n🏆 Your leaderboard score has increased.`,
+    { parse_mode: 'Markdown' }
+  );
+
+  setTimeout(() => {
+    bot.deleteMessage(userId, notice.message_id).catch(() => {});
+  }, 8000);
+});
+
 // ================= /spin =================
 bot.onText(/\/spin/, async (msg) => {
   const id = msg.chat.id;
