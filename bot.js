@@ -260,7 +260,7 @@ async function showMainMenu(id, lbPage = 0) {
   const lb = getLeaderboard(lbPage);
 
   let kb = [
-    ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
+    ...Object.keys(PRODUCTS).map(p => [{ text: `📦 ${p}`, callback_data: `product_${p}` }]),
     lb.buttons[0],
 
   ];
