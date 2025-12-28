@@ -299,7 +299,8 @@ ${streakText(u)}
 ${lotteryLine}
 
 📦 *Product*
-🥤 *Sprite Popperz* - Amazing Earthy, Sticky & White Buds
+
+🥤 *Sprite Popperz* - Amazing Earthy & Crystally Buds
 🍃 *Killer Green Budz* - Amazing Green Buds
 
 ${lb.text}`,
