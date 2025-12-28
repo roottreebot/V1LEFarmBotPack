@@ -1113,7 +1113,7 @@ bot.onText(/\/adminhelp/, async (msg) => {
 📊 /givewxp @user <e.g. 10 XP> — Give User Weekly XP
 
 ⏱ /uptime — Bot Uptime
-🗑 /clearpending — Clear ALL Pending Orders
+🗑 /clearpending <Optional @user> — Clear ALL Pending Orders
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
