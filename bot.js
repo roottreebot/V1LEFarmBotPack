@@ -287,10 +287,12 @@ await sendOrEdit(
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
 
+
 🌟 *Extra*
 
 ${streakText(u)}
 ${lotteryLine}
+
 
 📦 *Your Orders* (*Last 5*)
 
