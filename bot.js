@@ -1064,6 +1064,7 @@ bot.onText(/\/adminhelp/, async (msg) => {
 🧹 /clearfeedback — Clear Feedback
 ❌️ /removerole @user <rolename> — Remove Users Role
 🎁 /reward @user <e.g. 10, level, XP, rolename> — Reward A User Something
+📊 /givewxp @user <e.g. 10 XP> — Give User Weekly XP
 
 ⏱ /uptime — Bot Uptime
 🗑 /clearpending — Clear ALL Pending Orders
