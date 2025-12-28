@@ -274,6 +274,8 @@ async function showMainMenu(id, lbPage = 0) {
     kb.push([storeBtn]);
   }
 
+const lotteryText = getLotteryStatusText();
+  
   const storeStatus = meta.storeOpen ? '🟢 *Store Open*' : '🔴 *Store Closed*';
 
   await sendOrEdit(
