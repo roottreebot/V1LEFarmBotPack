@@ -896,10 +896,6 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
 
   const roles = u.roles?.length ? u.roles.join(', ') : '_No roles owned yet_';
 
-  const badge = u.cosmetics?.badge || 'None';
-  const title = u.cosmetics?.title || 'None';
-  const frame = u.cosmetics?.frame || 'None';
-
   const profileText = `
 👤 *User Profile*
 
@@ -920,17 +916,22 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
     if (photos.total_count > 0) {
       const fileId = photos.photos[0][photos.photos[0].length - 1].file_id;
 
-      return bot.sendPhoto(chatId, fileId, {
+      const sentMsg = await bot.sendPhoto(chatId, fileId, {
         caption: profileText,
         parse_mode: 'Markdown'
       });
+
+      // Auto-delete after 10 seconds
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
+      return;
     }
   } catch (err) {
     console.error('User profile photo fetch failed:', err.message);
   }
 
   // Fallback if no photo
-  bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
+  const sentMsg = await bot.sendMessage(chatId, profileText, { parse_mode: 'Markdown' });
+  setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
 });
 
 // ================= /shop COMMAND =================
