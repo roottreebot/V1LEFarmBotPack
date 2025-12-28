@@ -73,7 +73,7 @@ function ensureUser(id, username) {
       username: username || '',
       lastOrderAt: 0,
       roles: [],
-      
+
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
       dailyStreak: 0,
@@ -158,7 +158,7 @@ function getHighestRole(user) {
 
   // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
-  
+
   // Find the highest role the user owns
   let highest = "_No role_";
   for (const role of roleNames) {
@@ -166,6 +166,13 @@ function getHighestRole(user) {
   }
 
   return highest;
+}
+
+function getLotteryMenuText() {
+  if (!meta.lottery || !meta.lottery.active || !meta.lottery.role) {
+    return '🎟 /lottery Reward: None';
+  }
+  return `🎟 /lottery Reward: ${meta.lottery.role}`;
 }
 
 // ================= SESSIONS =================
@@ -241,14 +248,6 @@ async function showMainMenu(id, lbPage = 0) {
   ensureUser(id);
   cleanupOrders(id);
 
-  function getLotteryMenuLine() {
-  if (!meta.lottery || !meta.lottery.active || !meta.lottery.role) {
-    return '🎟 /lottery Reward: None';
-  }
-
-  return `🎟 /lottery Reward: ${meta.lottery.role}`;
-  }
-  
   const u = users[id];
   const highestRole = getHighestRole(u);
 
@@ -263,7 +262,7 @@ async function showMainMenu(id, lbPage = 0) {
   let kb = [
     ...Object.keys(PRODUCTS).map(p => [{ text: `🪴 ${p}`, callback_data: `product_${p}` }]),
     lb.buttons[0],
-    
+
   ];
 
   if (ADMIN_IDS.includes(id)) {
@@ -273,18 +272,15 @@ async function showMainMenu(id, lbPage = 0) {
     kb.push([storeBtn]);
   }
 
-const lotteryLine = getLotteryMenuLine();
+  const storeStatus = meta.storeOpen ? '🟢 *Store Open*' : '🔴 *Store Closed*';
 
-const text = `
-🏠 *Main Menu*
+  const lotteryLine = getLotteryMenuText();
 
-${meta.storeOpen ? '🟢 Store Open' : '🔴 Store Closed'}
+await sendOrEdit(
+  id,
+`${lotteryLine}
 
-...
-`;
-
-`${storeStatus}
- ${lotteryLine}
+${storeStatus}
 
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
@@ -346,7 +342,7 @@ bot.on('callback_query', async q => {
       }
     );
   }
-  
+
   if (q.data === 'reload') return showMainMenu(id);
   if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
 
@@ -1099,7 +1095,6 @@ if (!meta.lottery) {
     active: false,
     role: null,
     entries: []
-    saveAll();
   };
 }
 
@@ -1350,7 +1345,7 @@ bot.onText(/\/profile/, async (msg) => {
 const badge = u.cosmetics?.badge || 'None';
 const title = u.cosmetics?.title || 'None';
 const frame = u.cosmetics?.frame || 'None';
-  
+
   const profileText = `
 👤 *User Profile*
 
