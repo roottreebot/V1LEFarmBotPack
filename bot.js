@@ -281,13 +281,19 @@ await sendOrEdit(
 `${storeStatus}
 
 
+📊 *Level System*
+
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
+
+🌟 *Extra*
+
 ${streakText(u)}
 ${lotteryLine}
 
-📦 *Your Orders* (last 5)
+📦 *Your Orders* (*Last 5*)
+
 ${orders}
 
 ${lb.text}`,
