@@ -287,11 +287,9 @@ await sendOrEdit(
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
 
-
 📦 *Your Orders* (*Last 5*)
 
 ${orders}
-
 
 🌟 *Extra*
 
