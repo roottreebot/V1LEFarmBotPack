@@ -547,32 +547,75 @@ bot.on('message', msg => {
     grams = +(cash / price).toFixed(1);
   } else {
     grams = Math.round(parseFloat(text) * 2) / 2;
-    cash = +(grams * price).toFixed(2);
+
+// ================= MESSAGE HANDLER FOR GRAMS / $ =================
+bot.on('message', async msg => {
+  const id = msg.chat.id;
+  const s = sessions[id];
+  if (!s || s.step !== 'amount' || !s.product) return;
+
+  // Reset if main message was deleted
+  if (s.mainMsgId) {
+    const check = await bot.getChatMessage(id, s.mainMsgId).catch(() => null);
+    if (!check) s.mainMsgId = null;
   }
 
-  if (!grams || grams < 2) return;
+  let value = parseFloat(msg.text.replace(/\$/g, ''));
+  if (isNaN(value) || value <= 0) return;
 
-  s.grams = grams;
-  s.cash = cash;
+  const pricePerGram = PRODUCTS[s.product].price;
 
-  sendOrEdit(
-    id,
-`🧾 *Order Summary*
-🌿 *${s.product}*
-⚖️ ${grams}g
-💲 $${cash}`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✅ Confirm', callback_data: 'confirm_order' }],
-          [{ text: '🏠 Back to Menu', callback_data: 'reload' }]
-        ]
-      },
+  if (msg.text.includes('$')) {
+    s.cash = value;
+    s.grams = parseFloat((s.cash / pricePerGram).toFixed(2));
+  } else {
+    s.grams = value;
+    s.cash = parseFloat((s.grams * pricePerGram).toFixed(2));
+  }
+
+  // Build updated caption
+  const captionText = `🪴 You Have Chosen: *${s.product}*
+💲 Price per gram: $${pricePerGram}
+✏️ Grams: ${s.grams}g
+💲 Total: $${s.cash}
+📝 Press ✅ Confirm Order
+↩️ Or Back`;
+
+  // Edit existing main message or send new if deleted
+  if (s.mainMsgId) {
+    await bot.editMessageCaption(captionText, {
+      chat_id: id,
+      message_id: s.mainMsgId,
       parse_mode: 'Markdown'
+    }).catch(() => {});
+  } else {
+    const img = PRODUCT_IMAGES[s.product];
+    if (img) {
+      const sent = await bot.sendPhoto(id, img, {
+        caption: captionText,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
+    } else {
+      const sent = await sendOrEdit(id, captionText, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
     }
-  );
+  }
 });
-
+    
 // ================= ADMIN COMMANDS =================
 bot.onText(/\/ban (.+)/, (msg, match) => {
   const id = msg.chat.id;
