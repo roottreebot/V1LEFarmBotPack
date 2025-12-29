@@ -317,51 +317,32 @@ bot.onText(/\/start|\/help/, async msg => {
   await showMainMenu(msg.chat.id, 0);
 });
 
-// ================= FULL CALLBACKS & INPUT HANDLER =================
+// ================= CALLBACKS =================
 bot.on('callback_query', async q => {
   const id = q.message.chat.id;
   ensureUser(id, q.from.username);
   const s = sessions[id] || (sessions[id] = {});
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
-  // ---------- ADMIN PENDING CLEAR ----------
-  if (q.data === 'clearpending_confirm') {
-    if (!ADMIN_IDS.includes(id)) return;
-
-    let cleared = 0;
-    for (const uid of Object.keys(users)) {
-      if (!users[uid].orders) continue;
-      const before = users[uid].orders.length;
-      users[uid].orders = users[uid].orders.filter(o => o.status !== 'Pending');
-      cleared += before - users[uid].orders.length;
+  // Helper to delete main message and reset session
+  async function deleteMainMsg() {
+    if (s.mainMsgId) {
+      await bot.deleteMessage(id, s.mainMsgId).catch(() => {});
+      s.mainMsgId = null;
     }
-    saveAll();
-    return bot.editMessageText(`✅ Cleared ${cleared} pending orders.`, {
-      chat_id: id,
-      message_id: q.message.message_id
-    });
   }
 
-  if (q.data === 'clearpending_cancel') {
-    return bot.editMessageText('❌ Clear pending cancelled.', {
-      chat_id: id,
-      message_id: q.message.message_id
-    });
+  // ================= NAVIGATION / ADMIN =================
+  if (q.data === 'reload') { 
+    await deleteMainMsg(); 
+    s.step = null; 
+    return showMainMenu(id); 
   }
-
-  // ---------- MAIN MENU / LEADERBOARD ----------
-  if (q.data === 'reload') return showMainMenu(id);
   if (q.data.startsWith('lb_')) return showMainMenu(id, Math.max(0, Number(q.data.split('_')[1])));
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) { meta.storeOpen = true; saveAll(); return showMainMenu(id); }
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) { meta.storeOpen = false; saveAll(); return showMainMenu(id); }
 
-  // ---------- STORE OPEN / CLOSE ----------
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true; saveAll(); return showMainMenu(id);
-  }
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false; saveAll(); return showMainMenu(id);
-  }
-
-  // ---------- PRODUCT SELECTION ----------
+  // ================= PRODUCT SELECTION =================
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen)
       return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
@@ -370,94 +351,89 @@ bot.on('callback_query', async q => {
       return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
 
     s.lastClick = Date.now();
-
     const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
     if (pendingCount >= 2)
       return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
 
     s.product = q.data.replace('product_', '');
     s.step = 'amount';
+    s.grams = null;
+    s.cash = null;
+
+    await deleteMainMsg(); // remove old selection if exists
 
     const img = PRODUCT_IMAGES[s.product];
-    const price = PRODUCTS[s.product].price;
+    const captionText = `🪴 You Have Chosen: *${s.product}*\n💲 Price per gram: $${PRODUCTS[s.product].price}\n\n✏️ Send grams or $ amount (g) for *${s.product}*\n📝 Press ✅ Confirm Order\n↩️ Or Back`;
 
-    const text = `🪴 You Have Chosen: *${s.product}*
-💲 Price per gram: $${price}
-✏️ Send grams or $ amount for *${s.product}*`;
-
-    const keyboard = {
-      inline_keyboard: [[{ text: '↩️ Back', callback_data: 'reload' }]]
-    };
-
-    // Edit main menu message if exists, otherwise send new and store ID
-    try {
-      if (s.mainMsgId) {
-        if (img) await bot.editMessageMedia(
-          { type: 'photo', media: img, caption: text, parse_mode: 'Markdown' },
-          { chat_id: id, message_id: s.mainMsgId, reply_markup: keyboard }
-        );
-        else await bot.editMessageText(text, { chat_id: id, message_id: s.mainMsgId, parse_mode: 'Markdown', reply_markup: keyboard });
-      } else {
-        const sent = await bot.sendPhoto(id, img, { caption: text, parse_mode: 'Markdown', reply_markup: keyboard });
-        s.mainMsgId = sent.message_id;
-      }
-    } catch {
-      delete sessions[id]; // reset session if message deleted
-      return;
+    if (img) {
+      const sent = await bot.sendPhoto(id, img, {
+        caption: captionText,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
+    } else {
+      const sent = await sendOrEdit(id, captionText, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
     }
-
     return;
   }
 
-  // ---------- CONFIRM ORDER ----------
-if (q.data === 'confirm_order') {
-  if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
+  // ================= CONFIRM ORDER =================
+  if (q.data === 'confirm_order') {
+    if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
+    if (!s.product || !s.grams || !s.cash) return bot.answerCallbackQuery(q.id, { text: 'Please enter grams or $ amount first!', show_alert: true });
 
-  const xp = Math.floor(2 + s.cash * 0.5);
-  const order = {
-    product: s.product,
-    grams: s.grams,
-    cash: s.cash,
-    status: 'Pending',
-    pendingXP: xp,
-    adminMsgs: []
-  };
+    const xp = Math.floor(2 + s.cash * 0.5);
+    const order = {
+      product: s.product,
+      grams: s.grams,
+      cash: s.cash,
+      status: 'Pending',
+      pendingXP: xp,
+      adminMsgs: []
+    };
 
-  users[id].orders.push(order);
-  users[id].orders = users[id].orders.slice(-5);
-  saveAll();
+    users[id].orders.push(order);
+    users[id].orders = users[id].orders.slice(-5);
+    saveAll();
 
-  // DELETE the main menu / summary message for this order
-  if (s.mainMsgId) {
-    bot.deleteMessage(id, s.mainMsgId).catch(() => {});
-    s.mainMsgId = null;
-  }
+    await deleteMainMsg();
+    s.step = null;
 
-  for (const admin of ADMIN_IDS) {
-    const m = await bot.sendMessage(admin,
-      `🧾 *NEW ORDER*
-User: @${users[id].username || id}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ⚪ Pending`,
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '✅ Accept', callback_data: `admin_accept_${id}_${users[id].orders.length - 1}` },
-            { text: '❌ Reject', callback_data: `admin_reject_${id}_${users[id].orders.length - 1}` }
-          ]]
+    // Notify admins
+    for (const admin of ADMIN_IDS) {
+      const m = await bot.sendMessage(admin,
+        `🧾 *NEW ORDER*\nUser: @${users[id].username || id}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ⚪ Pending`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '✅ Accept', callback_data: `admin_accept_${id}_${users[id].orders.length - 1}` },
+              { text: '❌ Reject', callback_data: `admin_reject_${id}_${users[id].orders.length - 1}` }
+            ]]
+          }
         }
-      }
-    );
-    order.adminMsgs.push({ admin, msgId: m.message_id });
+      );
+      order.adminMsgs.push({ admin, msgId: m.message_id });
+    }
+
+    return showMainMenu(id);
   }
 
-  return showMainMenu(id);
-}
-
-  // ---------- ADMIN ACTIONS ----------
+  // ================= ADMIN HANDLING =================
   if (q.data.startsWith('admin_')) {
     const [, action, uid, index] = q.data.split('_');
     const userId = Number(uid);
@@ -470,18 +446,15 @@ Status: ⚪ Pending`,
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order has been accepted!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      bot.sendMessage(userId, '✅ Your order has been accepted!')
+        .then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
     } else {
-      bot.sendMessage(userId, '❌ Your order has been rejected!').then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
+      bot.sendMessage(userId, '❌ Your order has been rejected!')
+        .then(msg => setTimeout(() => bot.deleteMessage(userId, msg.message_id).catch(() => {}), 5000));
       users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
 
-    const adminText = `🧾 *ORDER UPDATED*
-User: @${users[userId].username || userId}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ${order.status}`;
+    const adminText = `🧾 *ORDER UPDATED*\nUser: @${users[userId].username || userId}\nProduct: ${order.product}\nGrams: ${order.grams}g\nPrice: $${order.cash}\nStatus: ${order.status}`;
 
     for (const { admin, msgId } of order.adminMsgs) {
       bot.editMessageText(adminText, { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }).catch(() => {});
@@ -492,56 +465,66 @@ Status: ${order.status}`;
   }
 });
 
-// ================= MESSAGE HANDLER FOR GRAMS/$ INPUT =================
+// ================= MESSAGE HANDLER FOR GRAMS / $ =================
 bot.on('message', async msg => {
   const id = msg.chat.id;
   const s = sessions[id];
-  if (!s || s.step !== 'amount' || !s.mainMsgId) return;
+  if (!s || s.step !== 'amount' || !s.product) return;
+
+  // Auto-reset if main message deleted
+  if (s.mainMsgId) {
+    const check = await bot.getChatMessage(id, s.mainMsgId).catch(() => null);
+    if (!check) s.mainMsgId = null;
+  }
+
+  let value = parseFloat(msg.text.replace(/\$/g, ''));
+  if (isNaN(value) || value <= 0) return;
 
   const pricePerGram = PRODUCTS[s.product].price;
-  let val = msg.text.replace(/\$/g, '').trim();
-  let grams = parseFloat(val);
-  let cash = parseFloat(val);
 
   if (msg.text.includes('$')) {
-    if (!isNaN(cash)) grams = Math.round((cash / pricePerGram) * 100) / 100;
-    s.cash = cash; s.grams = grams;
+    s.cash = value;
+    s.grams = parseFloat((s.cash / pricePerGram).toFixed(2));
   } else {
-    if (!isNaN(grams)) cash = Math.round(grams * pricePerGram * 100) / 100;
-    s.grams = grams; s.cash = cash;
+    s.grams = value;
+    s.cash = parseFloat((s.grams * pricePerGram).toFixed(2));
   }
 
-  // Clear previous timers if input deleted or typed too fast
-  if (s.amountTimeout) clearTimeout(s.amountTimeout);
-  if (s.countdownInterval) clearInterval(s.countdownInterval);
+  // Update main menu message
+  const captionText = `🪴 You Have Chosen: *${s.product}*\n💲 Price per gram: $${pricePerGram}\n✏️ Grams: ${s.grams}g\n💲 Total: $${s.cash}\n📝 Press ✅ Confirm Order\n↩️ Or Back`;
 
-  const img = PRODUCT_IMAGES[s.product];
-  const text = `🪴 You Have Chosen: *${s.product}*
-💲 Price per gram: $${pricePerGram}
-✏️ Grams: ${s.grams || 'N/A'}g
-💲 Total: $${s.cash || 'N/A'}
-📝 Press ✅ Confirm Order
-↩️ Or Back`;
-
-  const keyboard = {
-    inline_keyboard: [
-      [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
-      [{ text: '↩️ Back', callback_data: 'reload' }]
-    ]
-  };
-
-  try {
-    if (img) await bot.editMessageMedia(
-      { type: 'photo', media: img, caption: text, parse_mode: 'Markdown' },
-      { chat_id: id, message_id: s.mainMsgId, reply_markup: keyboard }
-    );
-    else await bot.editMessageText(text, { chat_id: id, message_id: s.mainMsgId, parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch {
-    delete sessions[id]; // Reset session if main message deleted
-    return;
+  if (s.mainMsgId) {
+    await bot.editMessageCaption(captionText, {
+      chat_id: id,
+      message_id: s.mainMsgId,
+      parse_mode: 'Markdown'
+    }).catch(() => {});
+  } else {
+    const img = PRODUCT_IMAGES[s.product];
+    if (img) {
+      const sent = await bot.sendPhoto(id, img, {
+        caption: captionText,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
+    } else {
+      const sent = await sendOrEdit(id, captionText, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+            [{ text: '↩️ Back', callback_data: 'reload' }]
+          ]
+        }
+      });
+      s.mainMsgId = sent.message_id;
+    }
   }
-
-  bot.deleteMessage(id, msg.message_id).catch(() => {});
 });
 
 // ================= USER INPUT =================
