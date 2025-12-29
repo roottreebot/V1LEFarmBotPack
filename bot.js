@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V2.00.02 ) ===
+// === ROOTTREE BOT (FINAL: V2.00.12 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -392,9 +392,11 @@ bot.on('callback_query', async q => {
   if (img) {
     const sent = await bot.sendPhoto(id, img, {
       caption:
-        `🪴 *${s.product}*\n` +
+        `🪴 You Have Chosen: *${s.product}*\n` +
         `💲 Price per gram: $${PRODUCTS[s.product].price}\n\n` +
-        `✏️ Send grams or $ amount for *${s.product}*`,
+        `✏️ Send grams or $ amount (g) for *${s.product}*`,
+        `📝 Once Done Scroll Up To Confirm Your *${s.product}* Order, (Do NOT Spam)\n`
+        `❌️ *This Message Will Delete In 30 Seconds, Make Sure To Be Quick*`                            
       parse_mode: 'Markdown'
     });
 
