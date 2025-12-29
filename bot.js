@@ -333,16 +333,13 @@ await sendOrEdit(
 📊 *XP*: ${xpBar(u.xp, u.level)}
 
 📦 *Your Orders* (*Last 5*)
-
 ${orders}
 
 🌟 *Extra*
-
 ${streakText(u)}
 ${lotteryLine}
 
 📦 *Product*
-
 🥤 *Sprite Popperz* - Amazing Crystally Buds
 🍃 *Killer Green Budz* - Amazing Green Buds
 
