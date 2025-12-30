@@ -427,12 +427,19 @@ if (q.data.startsWith('product_')) {
 }
 
   // ===== INPUT TYPE SELECTION =====
-  if (q.data === 'amount_cash') s.inputType = 'cash';
-  if (q.data === 'amount_grams') s.inputType = 'grams';
+  if (q.data === 'amount_cash') {
+  s.step = 'amount';
+  return bot.answerCallbackQuery(q.id, {
+    text: 'Send $ amount in chat'
+  });
+}
 
-  if (q.data === 'amount_cash' || q.data === 'amount_grams') {
-    if (!s.product) return bot.answerCallbackQuery(q.id, { text: 'Please select a product first', show_alert: true });
-
+if (q.data === 'amount_grams') {
+  s.step = 'amount';
+  return bot.answerCallbackQuery(q.id, {
+    text: 'Send grams in chat'
+  });
+}
     const price = PRODUCTS[s.product].price;
     let text = `🪴 *YOU HAVE CHOSEN*\n*${s.product}*\n\n💲 Price per gram: *$${price}*`;
     text += s.inputType === 'cash' ? `\n\n✏️ Send the $ amount you want to spend` : `\n\n✏️ Send the grams you want to buy`;
@@ -487,46 +494,53 @@ if (q.data.startsWith('product_')) {
   }
 });
 
-// ================= HANDLE USER TEXT INPUT =================
-bot.on('message', async (msg) => {
+// ================= CLEAN AMOUNT INPUT HANDLER (FIXED) =================
+bot.on('message', async msg => {
   const id = msg.chat.id;
   const s = sessions[id];
-  if (!s || s.step !== 'amount') return;
 
-  const value = parseFloat(msg.text.replace(/[^0-9.]/g, ''));
-  if (isNaN(value) || value <= 0) return;
+  if (!s || !s.product || s.step !== 'amount') return;
+  if (!msg.text) return;
+
+  // ✅ DELETE USER MESSAGE IMMEDIATELY
+  bot.deleteMessage(id, msg.message_id).catch(() => {});
+
+  const text = msg.text.trim();
+
+  // extract number safely
+  const num = parseFloat(text.replace(',', '.').replace(/[^0-9.]/g, ''));
+  if (isNaN(num) || num <= 0) return;
 
   const price = PRODUCTS[s.product].price;
 
-  if (s.inputType === 'grams') {
-    s.grams = value;
-    s.cash = parseFloat((s.grams * price).toFixed(2));
-  } else if (s.inputType === 'cash') {
-    s.cash = value;
+  // detect cash vs grams
+  if (text.includes('$')) {
+    s.cash = parseFloat(num.toFixed(2));
     s.grams = parseFloat((s.cash / price).toFixed(2));
   } else {
-    s.grams = value;
+    s.grams = parseFloat(num.toFixed(2));
     s.cash = parseFloat((s.grams * price).toFixed(2));
   }
 
-  s.step = 'confirm';
+  // build confirmation text
+  const textOut =
+`🪴 *YOU HAVE CHOSEN*
+*${s.product}*
 
-  const text = `✅ *ORDER SUMMARY*\n\n🪴 Product: *${s.product}*\n⚖️ Grams: *${s.grams}g*\n💲 Total: *$${s.cash}*`;
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: '✅ Confirm', callback_data: 'confirm_order' },
-        { text: '↩️ Back', callback_data: 'product_' + s.product }
+⚖️ Amount: *${s.grams}g*
+💲 Total: *$${s.cash}*
+
+Press ✅ Confirm Order`;
+
+  await sendOrEdit(id, textOut, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
+        [{ text: '↩️ Back', callback_data: 'reload' }]
       ]
-    ]
-  };
-
-  try {
-    await bot.editMessageText(text, { chat_id: id, message_id: s.lastMsgId, parse_mode: 'Markdown', reply_markup: keyboard });
-  } catch {
-    const msgSent = await sendOrEdit(id, { text, parse_mode: 'Markdown', reply_markup: keyboard });
-    s.lastMsgId = msgSent.message_id;
-  }
+    }
+  });
 });
 
 // ================= ADMIN COMMANDS =================
