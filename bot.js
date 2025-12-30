@@ -379,7 +379,6 @@ bot.on('callback_query', async q => {
 
 // ================= PRODUCT SELECTION =================
 if (q.data.startsWith('product_')) {
-  await sendProductImage(id, s.product);
   if (!meta.storeOpen)
     return bot.answerCallbackQuery(q.id, { text: 'Store is closed!', show_alert: true });
 
@@ -397,6 +396,9 @@ if (q.data.startsWith('product_')) {
   s.grams = null;
   s.cash = null;
 
+  // ✅ SEND IMAGE SEPARATELY
+  await sendProductImage(id, s.product);
+
   const price = PRODUCTS[s.product].price;
 
   const text =
@@ -407,22 +409,19 @@ if (q.data.startsWith('product_')) {
 
 ✏️ Send grams or $ amount`;
 
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: '💵 Enter $ Amount', callback_data: 'amount_cash' },
-        { text: '⚖️ Enter Grams', callback_data: 'amount_grams' }
-      ],
-      [
-        { text: '↩️ Back', callback_data: 'reload' }
-      ]
-    ]
-  };
-
-  // ALWAYS edit TEXT — never caption
   await sendOrEdit(id, text, {
     parse_mode: 'Markdown',
-    reply_markup: keyboard
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '💵 Enter $ Amount', callback_data: 'amount_cash' },
+          { text: '⚖️ Enter Grams', callback_data: 'amount_grams' }
+        ],
+        [
+          { text: '↩️ Back', callback_data: 'reload' }
+        ]
+      ]
+    }
   });
 
   return;
