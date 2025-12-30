@@ -126,9 +126,14 @@ const PRODUCTS = {
 
 // ================= ROLE SHOP =================
 const ROLE_SHOP = {
-  "🌟 Starter": { price: 50 },
-  "🌀 New": { price: 50 },
-  "💨 Smoke": { price: 100 },
+  "🌟 Starter": { price: 10 },
+  "🌀 New": { price: 10 },
+  "📦 WeightRunner": { price: 25 },
+  "🧱 HardPack": { price: 40 },
+  "💼 GhostSupply": { price: 55 },
+  "🕴 QuietHands": { price: 70 },
+  "🏴‍☠️ DirtyStacks": { price: 80 },
+  "💨 Smoke": { price: 90 },
   "🔥 Joint": { price: 120 },
   "💠 TrustedCustomer": { price: 180 },
   "🫩 BongHead": { price: 200 },
@@ -156,6 +161,11 @@ const ROLE_SHOP = {
   "🚬 CantStop": { price: 4700 },
   "🍃 TopPeople": { price: 5500 },
   "🏆 CantFeelAnything": { price: 6500 },
+  "🕳 EmptySoul": { price: 9000 },
+  "🧿 MindBroken": { price: 11000 },
+  "⚰️ NoReturn": { price: 13000 },
+  "♾ BurntOut": { price: 16000 },
+  "🌑 BeyondSaving": { price: 20000 },                   
 };
 
 // ================= HELPER FUNCTIONS =================
@@ -214,7 +224,7 @@ function getLeaderboard(page = 0) {
   const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
-  let text = `*📊 Weekly Leaderboard*\n\n`;
+  let text = `*📊 Weekly Leaderboard*\n`;
   slice.forEach(([id, u], i) => {
     text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
   });
@@ -286,24 +296,20 @@ await sendOrEdit(
   id,
 `${storeStatus}
 
-
 📊 *Level System*
-
+📝 *Buy Role /shop & /buy* 
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
 
 📦 *Your Orders* (*Last 5*)
-
 ${orders}
 
 🌟 *Extra*
-
 ${streakText(u)}
 ${lotteryLine}
 
 📦 *Product*
-
 🥤 *Sprite Popperz* - Amazing Crystally Buds
 🍃 *Killer Green Budz* - Amazing Green Buds
 
