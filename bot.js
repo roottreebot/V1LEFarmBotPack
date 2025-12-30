@@ -370,7 +370,7 @@ bot.on('callback_query', async q => {
     meta.storeOpen = false; saveAll(); return showMainMenu(id);
   }
 
-  // ================= PRODUCT SELECTION =================
+ // ================= PRODUCT SELECTION =================
 if (q.data.startsWith('product_')) {
   if (!meta.storeOpen)
     return bot.answerCallbackQuery(q.id, { text: 'Store is closed!', show_alert: true });
@@ -390,7 +390,7 @@ if (q.data.startsWith('product_')) {
   s.cash = null;
 
   const price = PRODUCTS[s.product].price;
-  
+
   const text =
 `🪴 *YOU HAVE CHOSEN*
 *${s.product}*
@@ -411,31 +411,31 @@ if (q.data.startsWith('product_')) {
     ]
   };
 
-// Get the product image from your PRODUCT_IMAGES object
   const imageId = PRODUCT_IMAGES[s.product];
 
   if (imageId) {
-    // Send or edit message with photo + caption
-    await sendOrEdit(id, {
-      photo: imageId,      // <-- This is the product image
-      caption: text,       // <-- Caption shows your text
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
+    // If there is a previous message, try editing it as photo
+    if (s.lastMsgId) {
+      try {
+        await bot.editMessageMedia(
+          { type: 'photo', media: imageId, caption: text, parse_mode: 'Markdown' },
+          { chat_id: id, message_id: s.lastMsgId, reply_markup: keyboard }
+        );
+      } catch {
+        // If edit fails (probably because last message was text), send new photo
+        const msg = await bot.sendPhoto(id, imageId, { caption: text, parse_mode: 'Markdown', reply_markup: keyboard });
+        s.lastMsgId = msg.message_id;
+      }
+    } else {
+      // No previous message → send new photo
+      const msg = await bot.sendPhoto(id, imageId, { caption: text, parse_mode: 'Markdown', reply_markup: keyboard });
+      s.lastMsgId = msg.message_id;
+    }
   } else {
-    // No image → fallback to text only
-    await sendOrEdit(id, {
-      text: text,
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
+    // No image → just edit or send text
+    const msg = await sendOrEdit(id, { text, parse_mode: 'Markdown', reply_markup: keyboard });
+    s.lastMsgId = msg.message_id;
   }
-  
-  // ALWAYS edit TEXT — never caption
-  await sendOrEdit(id, text, {
-    parse_mode: 'Markdown',
-    reply_markup: keyboard
-  });
 
   return;
 }
