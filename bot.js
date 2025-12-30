@@ -384,11 +384,11 @@ bot.on('callback_query', async q => {
 // ================= PRODUCT SELECTION =================
 if (q.data.startsWith('product_')) {
   if (!meta.storeOpen)
-    return bot.answerCallbackQuery(q.id, { text: 'Store is closed', show_alert: true });
+    return bot.answerCallbackQuery(q.id, { text: 'Store is closed!', show_alert: true });
 
   const pending = users[id].orders.filter(o => o.status === 'Pending').length;
   if (pending >= 2)
-    return bot.answerCallbackQuery(q.id, { text: 'You already have 2 pending orders', show_alert: true });
+    return bot.answerCallbackQuery(q.id, { text: 'You already have 2 pending orders!', show_alert: true });
 
   s.product = q.data.replace('product_', '');
   s.step = 'choose_amount';
@@ -415,57 +415,69 @@ if (q.data.startsWith('product_')) {
 *${s.product}*
 
 💲 Price per gram: *$${price}*
-*Click Either One Once!(Dont Worry It Will Work) Then Type $Amount Or Grams*
+*Click Either One Once! Then Type $Amount Or Grams*
 
 ❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
-  const msg = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
-  s.productMsgId = msg.message_id; // save this to delete later
+  // Send product selection message and save its ID
+  const sentProductMsg = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  s.productMsgId = sentProductMsg.message_id;
 
   return;
 }
 
-// ================= HANDLE USER TEXT INPUT =================
-bot.on('message', async (msg) => {
+// ================= HANDLE USER INPUT =================
+bot.on('message', async msg => {
   const id = msg.chat.id;
   const s = sessions[id];
-  if (!s || s.step !== 'amount' || !s.inputType || !s.product) return;
+  if (!s || !s.product || s.step !== 'amount' || !s.inputType || !s.productMsgId) return;
+  if (!msg.text) return;
 
-  // Delete the product selection message immediately
-  if (s.productMsgId) {
-    try {
-      await bot.deleteMessage(id, s.productMsgId);
-    } catch {}
-    s.productMsgId = null;
-  }
+  // Delete the user message for cleanliness
+  try { await bot.deleteMessage(id, msg.message_id); } catch {}
 
-  const value = parseFloat(msg.text.replace(/[^0-9.]/g, ''));
-  if (isNaN(value) || value <= 0) return;
+  const raw = msg.text.trim();
+  const num = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (isNaN(num) || num <= 0) return;
 
   const price = PRODUCTS[s.product].price;
 
-  if (s.inputType === 'grams') {
-    s.grams = value;
-    s.cash = parseFloat((s.grams * price).toFixed(2));
-  } else if (s.inputType === 'cash') {
-    s.cash = value;
+  if (s.inputType === 'cash') {
+    s.cash = parseFloat(num.toFixed(2));
     s.grams = parseFloat((s.cash / price).toFixed(2));
+  } else {
+    s.grams = parseFloat(num.toFixed(2));
+    s.cash = parseFloat((s.grams * price).toFixed(2));
   }
 
   s.step = 'confirm';
 
-  const text = `✅ *ORDER SUMMARY*\n\n🪴 Product: *${s.product}*\n⚖️ Grams: *${s.grams}g*\n💲 Total: *$${s.cash}*`;
-  const keyboard = {
+  const summaryText =
+`✅ *ORDER SUMMARY*
+🪴 Product: *${s.product}*
+⚖️ Grams: *${s.grams}g*
+💲 Total: *$${s.cash}*`;
+
+  const summaryKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ Confirm', callback_data: 'confirm_order' },
+        { text: '✅ Confirm Order', callback_data: 'confirm_order' },
         { text: '↩️ Back', callback_data: 'reload' }
       ]
     ]
   };
 
-  const msgSent = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
-  s.lastMsgId = msgSent.message_id;
+  // Edit the product message into order summary
+  try {
+    await bot.editMessageText(summaryText, {
+      chat_id: id,
+      message_id: s.productMsgId,
+      parse_mode: 'Markdown',
+      reply_markup: summaryKeyboard
+    });
+  } catch (err) {
+    console.error('Failed to edit order summary:', err);
+  }
 });
   
 // ================= AMOUNT TYPE =================
@@ -477,6 +489,7 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
   s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
 
   const price = PRODUCTS[s.product].price;
+
   const text =
 `🪴 *YOU HAVE CHOSEN*
 *${s.product}*
@@ -498,7 +511,7 @@ Please type your desired amount below.`;
     ]
   };
 
-  // EDIT the existing product selection message
+  // Edit the existing product selection message
   try {
     await bot.editMessageText(text, {
       chat_id: id,
@@ -507,7 +520,7 @@ Please type your desired amount below.`;
       reply_markup: keyboard
     });
   } catch (err) {
-    console.error('Failed to edit product message:', err);
+    console.error('Failed to edit product selection:', err);
   }
 
   return bot.answerCallbackQuery(q.id);
