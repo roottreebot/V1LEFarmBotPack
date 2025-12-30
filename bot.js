@@ -383,10 +383,12 @@ bot.on('callback_query', async q => {
 
   // ================= PRODUCT SELECTION =================
 if (q.data.startsWith('product_')) {
-  if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed', show_alert: true });
+  if (!meta.storeOpen)
+    return bot.answerCallbackQuery(q.id, { text: 'Store is closed', show_alert: true });
 
   const pending = users[id].orders.filter(o => o.status === 'Pending').length;
-  if (pending >= 2) return bot.answerCallbackQuery(q.id, { text: 'You already have 2 pending orders', show_alert: true });
+  if (pending >= 2)
+    return bot.answerCallbackQuery(q.id, { text: 'You already have 2 pending orders', show_alert: true });
 
   s.product = q.data.replace('product_', '');
   s.step = 'choose_amount';
@@ -417,22 +419,22 @@ if (q.data.startsWith('product_')) {
 
 ❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
-  const msg = await sendOrEdit(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
-  s.lastMsgId = msg?.message_id; // now this is set correctly
+  // send product selection message and save its ID
+  const msg = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  s.productMsgId = msg.message_id; // <- IMPORTANT: edit this later
 
   return;
 }
-
+  
 // ================= AMOUNT TYPE =================
 if (q.data === 'amount_cash' || q.data === 'amount_grams') {
-  if (!s.product || !s.lastMsgId)
+  if (!s.product || !s.productMsgId)
     return bot.answerCallbackQuery(q.id, { text: 'Please select a product first', show_alert: true });
 
   s.step = 'amount';
   s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
 
   const price = PRODUCTS[s.product].price;
-
   const text =
 `🪴 *YOU HAVE CHOSEN*
 *${s.product}*
@@ -454,15 +456,16 @@ Please type your desired amount below.`;
     ]
   };
 
+  // EDIT the existing product selection message
   try {
     await bot.editMessageText(text, {
       chat_id: id,
-      message_id: s.lastMsgId,
+      message_id: s.productMsgId,
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
   } catch (err) {
-    console.error('Failed to edit message:', err);
+    console.error('Failed to edit product message:', err);
   }
 
   return bot.answerCallbackQuery(q.id);
