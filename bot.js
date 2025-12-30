@@ -426,6 +426,14 @@ bot.on('callback_query', async q => {
 
   return;
   }
+
+  if (q.data === 'amount_cash') {
+  return bot.answerCallbackQuery(q.id, { text: 'Now send $ amount in chat' });
+}
+
+if (q.data === 'amount_grams') {
+  return bot.answerCallbackQuery(q.id, { text: 'Now send grams in chat' });
+}
   
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
