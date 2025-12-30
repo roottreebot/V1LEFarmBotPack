@@ -1031,31 +1031,47 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
   setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
 });
 
-// ================= PRODUCT INFO COMMANDS =================
-bot.on('message', async (msg) => {
+// ================= /spriteinfo =============
+bot.onText(/\/spritepop/, async (msg) => {
   const id = msg.chat.id;
-  const textRaw = msg.text?.trim().toLowerCase();
-  if (!textRaw) return;
+  const cmdMsgId = msg.message_id;
 
-  let imageId, description;
+  const text = `
+🥤 *SPRITE POPPERZ*
 
-  if (textRaw === '/spriteinfo') {
-    description = `🪴 *Sprite Popperz*\n\nThis is a top-shelf strain with a sweet, fruity aroma and an uplifting effect. Perfect for daytime use and creative sessions.`;
-  } else if (textRaw === '/kgbinfo') {
-    description = `🪴 *Killer Green Budz*\n\nA potent strain with a strong, relaxing effect. Known for its vivid green buds and intense flavor, ideal for evening relaxation.`;
-  } else {
-    return; // Not an info command
-  }
+🏅 *Created By @v1leshop*
 
-  // Send photo + description
-  let sentMsg;
-  } else {
-    sentMsg = await bot.sendMessage(id, description, { parse_mode: 'Markdown' });
-  }
+📝 *Sprite Popperz* Have A Taste Of This Refreshing Bud! Crystally, Sticky & Delicious Tasting Bud!
+`;
 
-  // Auto-delete after 10 seconds
+  const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+
+  // ⏳ Auto-delete BOTH messages after 10s
   setTimeout(() => {
-    try { bot.deleteMessage(id, sentMsg.message_id); } catch {}
+    bot.deleteMessage(id, sent.message_id).catch(() => {});
+    bot.deleteMessage(id, cmdMsgId).catch(() => {});
+  }, 10000);
+});
+
+// ================= /spriteinfo =============
+bot.onText(/\/killergb/, async (msg) => {
+  const id = msg.chat.id;
+  const cmdMsgId = msg.message_id;
+
+  const text = `
+🥤 *KILLER GREEN BUDZ*
+
+🏅 *Created By @missusv1le*
+
+📝 *Killer Green Budz* Have A Taste Of This Green & Sticky Bud!
+`;
+
+  const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+
+  // ⏳ Auto-delete BOTH messages after 10s
+  setTimeout(() => {
+    bot.deleteMessage(id, sent.message_id).catch(() => {});
+    bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
 });
 
