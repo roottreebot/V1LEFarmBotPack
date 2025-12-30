@@ -433,7 +433,7 @@ bot.on('message', async msg => {
   if (!s || !s.product || s.step !== 'amount' || !s.inputType || !s.productMsgId) return;
   if (!msg.text) return;
 
-  // Delete the user message for cleanliness
+  // Delete the user's text immediately
   try { await bot.deleteMessage(id, msg.message_id); } catch {}
 
   const raw = msg.text.trim();
@@ -450,34 +450,18 @@ bot.on('message', async msg => {
     s.cash = parseFloat((s.grams * price).toFixed(2));
   }
 
-  s.step = 'confirm';
+  // Optional: perform your order logic here (save to DB, etc.)
 
-  const summaryText =
-`✅ *ORDER SUMMARY*
-🪴 Product: *${s.product}*
-⚖️ Grams: *${s.grams}g*
-💲 Total: *$${s.cash}*`;
+  // Delete the product selection message automatically
+  try { await bot.deleteMessage(id, s.productMsgId); } catch {}
+  s.productMsgId = null;
 
-  const summaryKeyboard = {
-    inline_keyboard: [
-      [
-        { text: '✅ Confirm Order', callback_data: 'confirm_order' },
-        { text: '↩️ Back', callback_data: 'reload' }
-      ]
-    ]
-  };
-
-  // Edit the product message into order summary
-  try {
-    await bot.editMessageText(summaryText, {
-      chat_id: id,
-      message_id: s.productMsgId,
-      parse_mode: 'Markdown',
-      reply_markup: summaryKeyboard
-    });
-  } catch (err) {
-    console.error('Failed to edit order summary:', err);
-  }
+  // Reset step after order
+  s.step = null;
+  s.product = null;
+  s.inputType = null;
+  s.grams = null;
+  s.cash = null;
 });
   
 // ================= AMOUNT TYPE =================
