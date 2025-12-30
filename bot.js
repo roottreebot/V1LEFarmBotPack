@@ -1080,13 +1080,13 @@ Dive into the crisp, sticky, and flavorful world of *Sprite Popperz*. Each nug s
   }, 10000);
 });
 
-// ================= /spriteinfo =============
+// ================= /killergb =============
 bot.onText(/\/killergb/, async (msg) => {
   const id = msg.chat.id;
   const cmdMsgId = msg.message_id;
 
   const text = `
-🥤 *KILLER GREEN BUDZ*
+🍀 *KILLER GREEN BUDZ*
 
 🏅 *Created By @missusv1le*
 
