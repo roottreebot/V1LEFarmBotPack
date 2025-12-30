@@ -366,53 +366,67 @@ bot.on('callback_query', async q => {
 
   // ================= PRODUCT SELECTION =================
   if (q.data.startsWith('product_')) {
-    if (!meta.storeOpen)
-      return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
+  if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: ' Store is closed! Orders disabled.', show_alert: true });
+  if (Date.now() - (s.lastClick || 0) < 30000) return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
+  s.lastClick = Date.now();
+  const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
+  if (pendingCount >= 2) return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
 
-    if (Date.now() - (s.lastClick || 0) < 30000)
-      return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
+  s.product = q.data.replace('product_', '');
+  s.step = 'amount';
+  s.grams = null;
+  s.cash = null;
 
-    s.lastClick = Date.now();
-    const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
-    if (pendingCount >= 2)
-      return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
+  // Build the "enter amount" keyboard
+  const amountKeyboard = {
+    inline_keyboard: [
+      [
+        { text: '💵 Enter $ Amount', callback_data: 'amount_cash' },
+        { text: '⚖️ Enter Grams', callback_data: 'amount_grams' }
+      ],
+      [
+        { text: '↩️ Back', callback_data: 'reload' }
+      ]
+    ]
+  };
 
-    s.product = q.data.replace('product_', '');
-    s.step = 'amount';
-    s.grams = null;
-    s.cash = null;
+  // Caption text
+  const captionText = `You Have Chosen: *${s.product}*\nPrice per gram: $${PRODUCTS[s.product].price}\n\n✏️ Send grams or $ amount for *${s.product}*`;
 
-    await deleteMainMsg(); // remove old selection if exists
-
-    const img = PRODUCT_IMAGES[s.product];
-    const captionText = `🪴 You Have Chosen: *${s.product}*\n💲 Price per gram: $${PRODUCTS[s.product].price}\n\n✏️ Send grams or $ amount (g) for *${s.product}*\n📝 Press ✅ Confirm Order\n↩️ Or Back`;
-
-    if (img) {
-      const sent = await bot.sendPhoto(id, img, {
+  if (PRODUCT_IMAGES[s.product]) {
+    // Edit the photo message instead of deleting
+    await bot.editMessageCaption(captionText, {
+      chat_id: id,
+      message_id: s.mainMsgId,
+      parse_mode: 'Markdown',
+      reply_markup: amountKeyboard
+    }).catch(async () => {
+      // fallback if editing fails, show new message
+      const sent = await bot.sendPhoto(id, PRODUCT_IMAGES[s.product], {
         caption: captionText,
         parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
-            [{ text: '↩️ Back', callback_data: 'reload' }]
-          ]
-        }
+        reply_markup: amountKeyboard
       });
       s.mainMsgId = sent.message_id;
-    } else {
+    });
+  } else {
+    await bot.editMessageText(captionText, {
+      chat_id: id,
+      message_id: s.mainMsgId,
+      parse_mode: 'Markdown',
+      reply_markup: amountKeyboard
+    }).catch(async () => {
       const sent = await sendOrEdit(id, captionText, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '✅ Confirm Order', callback_data: 'confirm_order' }],
-            [{ text: '↩️ Back', callback_data: 'reload' }]
-          ]
-        }
+        parse_mode: 'Markdown',
+        reply_markup: amountKeyboard
       });
       s.mainMsgId = sent.message_id;
-    }
-    return;
+    });
   }
 
+  return;
+  }
+  
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
