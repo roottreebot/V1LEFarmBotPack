@@ -437,7 +437,8 @@ bot.on('callback_query', async q => {
 
 // ================= AMOUNT TYPE =================
 if (q.data === 'amount_cash' || q.data === 'amount_grams') {
-  if (!s.product) return bot.answerCallbackQuery(q.id, { text: 'Please select a product first', show_alert: true });
+  if (!s.product) 
+    return bot.answerCallbackQuery(q.id, { text: 'Please select a product first', show_alert: true });
 
   s.step = 'amount';
   s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
@@ -464,8 +465,8 @@ Please type your desired amount below.`;
     ]
   };
 
+  // ALWAYS edit the existing "YOU HAVE CHOSEN" message
   if (s.lastMsgId) {
-    // EDIT the original main menu/product message
     try {
       await bot.editMessageText(text, {
         chat_id: id,
@@ -473,7 +474,8 @@ Please type your desired amount below.`;
         parse_mode: 'Markdown',
         reply_markup: keyboard
       });
-    } catch {
+    } catch (err) {
+      console.error('Failed to edit message:', err);
       // fallback if edit fails
       const msgSent = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
       s.lastMsgId = msgSent.message_id;
@@ -486,7 +488,7 @@ Please type your desired amount below.`;
 
   return bot.answerCallbackQuery(q.id);
 }
-
+  
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
     if (!s.product || !s.grams || !s.cash) {
