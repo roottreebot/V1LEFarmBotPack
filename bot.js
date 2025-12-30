@@ -1031,7 +1031,7 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
   setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
 });
 
-// ================= PRODUCT INFO WITH IMAGE =================
+// ================= PRODUCT INFO COMMANDS =================
 bot.on('message', async (msg) => {
   const id = msg.chat.id;
   const textRaw = msg.text?.trim().toLowerCase();
@@ -1046,10 +1046,10 @@ bot.on('message', async (msg) => {
     imageId = PRODUCT_IMAGES["Killer Green Budz"];
     description = `🪴 *Killer Green Budz*\n\nA potent strain with a strong, relaxing effect. Known for its vivid green buds and intense flavor, ideal for evening relaxation.`;
   } else {
-    return; // not a command we handle here
+    return; // Not an info command
   }
 
-  // Send product image + description
+  // Send photo + description
   let sentMsg;
   if (imageId) {
     sentMsg = await bot.sendPhoto(id, imageId, { caption: description, parse_mode: 'Markdown' });
