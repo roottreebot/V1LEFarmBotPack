@@ -423,9 +423,9 @@ bot.on('callback_query', async q => {
 *${s.product}*
 
 💲 Price per gram: *$${price}*
-Choose how you want to enter the amount
-Click Either One Once! Then Type $Amount Or Grams
-❗️Note Anything Under 2 ($20) Will Be Auto Rejected`;
+*Click Either One Once!(Dont Worry It Will Work) Then Type $Amount Or Grams*
+
+❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
     await sendOrEdit(id, text, {
       parse_mode: 'Markdown',
