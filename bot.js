@@ -411,19 +411,19 @@ if (q.data.startsWith('product_')) {
     ]
   };
 
-  // Get product image from PRODUCT_IMAGES
+// Get the product image from your PRODUCT_IMAGES object
   const imageId = PRODUCT_IMAGES[s.product];
 
   if (imageId) {
-    // Send or edit the message with photo + caption
+    // Send or edit message with photo + caption
     await sendOrEdit(id, {
-      photo: imageId,
-      caption: text,
+      photo: imageId,      // <-- This is the product image
+      caption: text,       // <-- Caption shows your text
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
   } else {
-    // No image → just edit text
+    // No image → fallback to text only
     await sendOrEdit(id, {
       text: text,
       parse_mode: 'Markdown',
