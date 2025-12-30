@@ -408,6 +408,33 @@ bot.on('callback_query', async (q) => {
     return bot.answerCallbackQuery(q.id);
   }
 
+  // ================= PRODUCT SELECTION & INPUT FLOW =================
+bot.on('callback_query', async (q) => {
+  const id = q.message.chat.id;
+  ensureUser(id, q.from.username);
+  if (!sessions[id]) sessions[id] = {};
+  const s = sessions[id];
+
+  // ===== BACK / RELOAD MAIN MENU =====
+  if (q.data === 'reload') {
+    try { if (s.lastMsgId) await bot.deleteMessage(id, s.lastMsgId); } catch {}
+    s.lastMsgId = null;
+    s.step = null;
+    s.product = null;
+    s.grams = null;
+    s.cash = null;
+    s.inputType = null;
+
+    const keyboard = {
+      inline_keyboard: Object.keys(PRODUCTS).map(name => [{ text: name, callback_data: `product_${name}` }])
+    };
+    const text = '🛒 *Welcome to the Store!*\nSelect a product to start your order:';
+    const msg = await sendOrEdit(id, { text, parse_mode: 'Markdown', reply_markup: keyboard });
+    s.lastMsgId = msg.message_id;
+
+    return bot.answerCallbackQuery(q.id);
+  }
+
   // ===== PRODUCT SELECTION =====
   if (q.data.startsWith('product_')) {
     if (!meta.storeOpen)
@@ -459,19 +486,15 @@ bot.on('callback_query', async (q) => {
   }
 
   // ===== INPUT TYPE SELECTION =====
+  if (q.data === 'amount_cash') s.inputType = 'cash';
+  if (q.data === 'amount_grams') s.inputType = 'grams';
+
   if (q.data === 'amount_cash' || q.data === 'amount_grams') {
     if (!s.product) return bot.answerCallbackQuery(q.id, { text: 'Please select a product first', show_alert: true });
 
-    s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
-
     const price = PRODUCTS[s.product].price;
-    const text =
-`🪴 *YOU HAVE CHOSEN*
-*${s.product}*
-
-💲 Price per gram: *$${price}*
-
-✏️ Please enter the amount in ${s.inputType === 'cash' ? '$' : 'grams'} now`;
+    let text = `🪴 *YOU HAVE CHOSEN*\n*${s.product}*\n\n💲 Price per gram: *$${price}*`;
+    text += s.inputType === 'cash' ? `\n\n✏️ Send the $ amount you want to spend` : `\n\n✏️ Send the grams you want to buy`;
 
     const keyboard = {
       inline_keyboard: [
@@ -488,8 +511,8 @@ bot.on('callback_query', async (q) => {
     try {
       await bot.editMessageText(text, { chat_id: id, message_id: s.lastMsgId, parse_mode: 'Markdown', reply_markup: keyboard });
     } catch {
-      const msgSent = await sendOrEdit(id, { text, parse_mode: 'Markdown', reply_markup: keyboard });
-      s.lastMsgId = msgSent.message_id;
+      const msg = await sendOrEdit(id, { text, parse_mode: 'Markdown', reply_markup: keyboard });
+      s.lastMsgId = msg.message_id;
     }
 
     return bot.answerCallbackQuery(q.id);
@@ -527,7 +550,7 @@ bot.on('callback_query', async (q) => {
 bot.on('message', async (msg) => {
   const id = msg.chat.id;
   const s = sessions[id];
-  if (!s || s.step !== 'amount' || !s.inputType || !s.product) return;
+  if (!s || s.step !== 'amount') return;
 
   const value = parseFloat(msg.text.replace(/[^0-9.]/g, ''));
   if (isNaN(value) || value <= 0) return;
@@ -540,6 +563,9 @@ bot.on('message', async (msg) => {
   } else if (s.inputType === 'cash') {
     s.cash = value;
     s.grams = parseFloat((s.cash / price).toFixed(2));
+  } else {
+    s.grams = value;
+    s.cash = parseFloat((s.grams * price).toFixed(2));
   }
 
   s.step = 'confirm';
