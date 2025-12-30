@@ -370,46 +370,55 @@ bot.on('callback_query', async q => {
     meta.storeOpen = false; saveAll(); return showMainMenu(id);
   }
 
-  if (q.data.startsWith('product_')) {
+  // ================= PRODUCT SELECTION =================
+if (q.data.startsWith('product_')) {
   if (!meta.storeOpen)
-    return bot.answerCallbackQuery(q.id, { text: '🛑 Store is closed! Orders disabled.', show_alert: true });
+    return bot.answerCallbackQuery(q.id, { text: 'Store is closed!', show_alert: true });
 
   if (Date.now() - (s.lastClick || 0) < 30000)
     return bot.answerCallbackQuery(q.id, { text: 'Please wait before clicking again', show_alert: true });
 
   s.lastClick = Date.now();
 
-  // ✅ Max 2 pending orders
   const pendingCount = users[id].orders.filter(o => o.status === 'Pending').length;
   if (pendingCount >= 2)
     return bot.answerCallbackQuery(q.id, { text: '❌ You already have 2 pending orders!', show_alert: true });
 
   s.product = q.data.replace('product_', '');
   s.step = 'amount';
+  s.grams = null;
+  s.cash = null;
 
-  const img = PRODUCT_IMAGES[s.product];
+  const price = PRODUCTS[s.product].price;
 
-  if (img) {
-    const sent = await bot.sendPhoto(id, img, {
-      caption:
-        `🪴 *${s.product}*\n` +
-        `💲 Price per gram: $${PRODUCTS[s.product].price}\n\n` +
-        `✏️ Send grams or $ amount for *${s.product}*`,
-      parse_mode: 'Markdown'
-    });
+  const text =
+`🪴 *YOU HAVE CHOSEN*
+*${s.product}*
 
-    // OPTIONAL auto-delete after 30s (remove if you want it to stay)
-    setTimeout(() => {
-      bot.deleteMessage(id, sent.message_id).catch(() => {});
-    }, 30000);
+💲 Price per gram: *$${price}*
 
-  } else {
-    // Fallback to text prompt if no image is defined
-    sendOrEdit(id, `✏️ Send grams or $ amount for *${s.product}*`);
-  }
+✏️ Send grams or $ amount`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '💵 Enter $ Amount', callback_data: 'amount_cash' },
+        { text: '⚖️ Enter Grams', callback_data: 'amount_grams' }
+      ],
+      [
+        { text: '↩️ Back', callback_data: 'reload' }
+      ]
+    ]
+  };
+
+  // ALWAYS edit TEXT — never caption
+  await sendOrEdit(id, text, {
+    parse_mode: 'Markdown',
+    reply_markup: keyboard
+  });
 
   return;
-  }
+}
 
   if (q.data === 'confirm_order') {
     if (!meta.storeOpen) return bot.answerCallbackQuery(q.id, { text: 'Store is closed! Cannot confirm order.', show_alert: true });
