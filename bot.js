@@ -1040,10 +1040,8 @@ bot.on('message', async (msg) => {
   let imageId, description;
 
   if (textRaw === '/spriteinfo') {
-    imageId = PRODUCT_IMAGES["Sprite Popperz"];
     description = `🪴 *Sprite Popperz*\n\nThis is a top-shelf strain with a sweet, fruity aroma and an uplifting effect. Perfect for daytime use and creative sessions.`;
   } else if (textRaw === '/kgbinfo') {
-    imageId = PRODUCT_IMAGES["Killer Green Budz"];
     description = `🪴 *Killer Green Budz*\n\nA potent strain with a strong, relaxing effect. Known for its vivid green buds and intense flavor, ideal for evening relaxation.`;
   } else {
     return; // Not an info command
@@ -1051,8 +1049,6 @@ bot.on('message', async (msg) => {
 
   // Send photo + description
   let sentMsg;
-  if (imageId) {
-    sentMsg = await bot.sendPhoto(id, imageId, { caption: description, parse_mode: 'Markdown' });
   } else {
     sentMsg = await bot.sendMessage(id, description, { parse_mode: 'Markdown' });
   }
