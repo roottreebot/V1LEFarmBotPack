@@ -1031,6 +1031,51 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
   setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
 });
 
+// ================= PRODUCT INFO WITH IMAGE =================
+bot.onText(/\/spinfo/, async (msg) => {
+  const id = msg.chat.id;
+
+  const text = `🪴 *Sprite Popperz*\n\nThis is a top-shelf strain with a sweet, fruity aroma and an uplifting effect. Perfect for daytime use and creative sessions.`;
+
+  const imageId = PRODUCT_IMAGES["Sprite Popperz"];
+
+  if (imageId) {
+    const sentMsg = await bot.sendPhoto(id, imageId, { caption: text, parse_mode: 'Markdown' });
+
+    // Delete after 10 seconds
+    setTimeout(() => {
+      try { bot.deleteMessage(id, sentMsg.message_id); } catch {}
+    }, 10000);
+  } else {
+    const sentMsg = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+    setTimeout(() => {
+      try { bot.deleteMessage(id, sentMsg.message_id); } catch {}
+    }, 10000);
+  }
+});
+
+bot.onText(/\/kgbinfo/, async (msg) => {
+  const id = msg.chat.id;
+
+  const text = `🪴 *Killer Green Budz*\n\nA potent strain with a strong, relaxing effect. Known for its vivid green buds and intense flavor, ideal for evening relaxation.`;
+
+  const imageId = PRODUCT_IMAGES["Killer Green Budz"];
+
+  if (imageId) {
+    const sentMsg = await bot.sendPhoto(id, imageId, { caption: text, parse_mode: 'Markdown' });
+
+    // Delete after 10 seconds
+    setTimeout(() => {
+      try { bot.deleteMessage(id, sentMsg.message_id); } catch {}
+    }, 10000);
+  } else {
+    const sentMsg = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+    setTimeout(() => {
+      try { bot.deleteMessage(id, sentMsg.message_id); } catch {}
+    }, 10000);
+  }
+});
+
 // ================= /shop COMMAND =================
 const SHOP_PAGE_SIZE = 5;
 
