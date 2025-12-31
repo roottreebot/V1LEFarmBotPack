@@ -252,7 +252,7 @@ function getLeaderboard(page = 0) {
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
   let text = `*📊 Weekly Leaderboard*\n`;
-text += `*Want To Go Private?* /wlprivate & /wlon\n\n`;
+text += `*Want To Go Private?* /wlprivate & /wlon\n`;
   slice.forEach(([id, u], i) => {
     const name = u.privateWL
       ? '👤 Private User'
@@ -1198,23 +1198,34 @@ bot.onText(/\/userhelp/, async (msg) => {
   const text = `
 👤 *USER COMMANDS*
 
+🏆 *RANK*
 🏅 /rank — View your rank & XP
 
+🎰 *GAMBLE*
 🍀 /lottery — Enter Free Lottery & Possibly Win A Role
 🃏 /blackjack (10) — Play Blackjack (10 XP)
 🎰 /slots (10) — Play Slots (10 XP)
-🎡 /spin — Spin The Daily Wheel
 
+📅 *DAILY*
+🎡 /spin — Spin The Daily Wheel
 🎁 /daily — Claim daily Reward
 
+🧼 *CLEANER*
 🧹 /clear — Clear Your Messages / session 42H
 
+📝 *FEEDBACK*
 💬 /feedback <text> — Send Feedback To Admins
 
+👤 *PROFILE*
 🧾 /userprofile — View Your Profile
 
+👑 *ROLES*
 🛒 /shop — View Role Shop
 🛍 /buy — Buy From Role Shop
+
+🛡 *PRIVACY*
+/wlprivate — Make Your Name On Weekly Leaderboard Private
+/wlon — Turns Private Weekly Leaderboard Off
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
@@ -1237,26 +1248,32 @@ bot.onText(/\/adminhelp/, async (msg) => {
   const text = `
 🏆 *ADMIN COMMANDS*
 
+👨‍💻 *EXPORT / IMPORT*
 📦 /exportdb — Export Database
 📥 /importdb — Import Database
 
+💺 *USER MANAGEMENT*
 🚫 /ban @user — Ban A User
 ✅ /unban @user — Unban A User
 📋 /banlist — View Banned Users
-
-📢 /broadcast <msg> — Message All Users
-
 🔄 /resetweekly @user — Reset Weekly XP
-👥 /activeusers — Show Active Users
-
-🍀 /makelottery <role> — Make A Lottery
-🎰 /drawlottery — Draw The Lottery
-💬 /userfeedback — View Feedback
-🧹 /clearfeedback — Clear Feedback
 ❌️ /removerole @user <rolename> — Remove Users Role
 🎁 /reward @user <e.g. 10, level, XP, rolename> — Reward A User Something
 📊 /givewxp @user <e.g. 10 XP> — Give User Weekly XP
+📢 /broadcast <msg> — Message All Users
 
+📦 *ACTIVE*
+👥 /activeusers — Show Active Users
+
+🎁 *LOTTERY*
+🍀 /makelottery <role> — Make A Lottery
+🎰 /drawlottery — Draw The Lottery
+
+📝 *FEEDBACK*
+💬 /userfeedback — View Feedback
+🧹 /clearfeedback — Clear Feedback
+
+🧼 *CLEANER*
 ⏱ /uptime — Bot Uptime
 🗑 /clearpending <Optional @user> — Clear ALL Pending Orders
 `;
