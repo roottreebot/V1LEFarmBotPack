@@ -253,6 +253,7 @@ function getLeaderboard(page = 0) {
 
   let text = `*📊 WEEKLY LEADERBOARD*\n`;
 text += `Want To Go Private*?* /wlprivate & /wlon\n`;
+text += `——————————————————\n`;
   slice.forEach(([id, u], i) => {
     const name = u.privateWL
       ? '👤 Private User'
@@ -315,12 +316,12 @@ async function showMainMenu(id, lbPage = 0) {
 
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
-      ? { text: '🔴 Close Store', callback_data: 'store_close' }
-      : { text: '🟢 Open Store', callback_data: 'store_open' };
+      ? { text: '🔴 Close: Store', callback_data: 'store_close' }
+      : { text: '🟢 Open: Store', callback_data: 'store_open' };
     kb.push([storeBtn]);
   }
 
-  const storeStatus = meta.storeOpen ? '🟢 *Store Open*' : '🔴 *Store Closed*';
+  const storeStatus = meta.storeOpen ? '😙💨 *STORE OPEN*' : '😙❌️ *STORE CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
