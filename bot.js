@@ -459,46 +459,56 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
   return;
 }
   
-// ================= USER INPUT =================
+// ================= HANDLE USER TEXT INPUT =================
 bot.on('message', async (msg) => {
   const id = msg.chat.id;
-  if (!users[id] || !users[id].session) return;
+  const s = sessions[id];
+  if (!s || s.step !== 'amount' || !s.inputType || !s.product) return;
 
-  const s = users[id].session;
-  if (msg.text.startsWith('/')) return;
+  // we remove the product selection message
+  if (s.productMsgId) {
+    try { await bot.deleteMessage(id, s.productMsgId); } catch {}
+    s.productMsgId = null;
+  }
 
-  if (s.step !== 'choose_amount' || !s.inputType) return;
-
-  const value = parseFloat(msg.text);
-  if (isNaN(value)) return;
+  const value = parseFloat(msg.text.replace(/[^0-9.]/g, ''));
+  if (isNaN(value) || value <= 0) return;
 
   const price = PRODUCTS[s.product].price;
-
-  if (s.inputType === 'cash') {
-    if (value < 20) return;
-    s.cash = value;
-    s.grams = (value / price).toFixed(2);
-  }
-
   if (s.inputType === 'grams') {
-    if (value < 2) return;
     s.grams = value;
-    s.cash = (value * price).toFixed(2);
+    s.cash = parseFloat((s.grams * price).toFixed(2));
+  } else {
+    s.cash = value;
+    s.grams = parseFloat((s.cash / price).toFixed(2));
   }
 
-  // ✅ EDIT MAIN MENU (YOU HAVE CHOSEN)
-  const text =
-`🪴 *YOU HAVE CHOSEN*
-*${s.product}*
+  s.step = 'confirm';
 
-⚖️ Grams: *${s.grams}g*
-💲 Total: *$${s.cash}*
+  // 🎯 EDIT the original *YOU HAVE CHOSEN* message
+  const text = `🪴 *YOU HAVE CHOSEN*\n*${s.product}*\n\n⚖️ Grams: *${s.grams}g*\n💲 Total: *$${s.cash}*\n\nPress ✅ Confirm Order`;
 
-Press ✅ Confirm Order`;
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '✅ Confirm', callback_data: 'confirm_order' },
+        { text: '↩️ Back', callback_data: 'reload' }
+      ]
+    ]
+  };
 
-  await sendOrEdit(id, text, {
-    parse_mode: 'Markdown'
-  });
+  try {
+    await bot.editMessageText(text, {
+      chat_id: id,
+      message_id: s.mainMsgId || msg.message_id,
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
+  } catch (err) {
+    console.error('Failed to edit chosen message:', err);
+    // fallback to sending a normal message
+    await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  }
 });
   
   // ================= CONFIRM ORDER =================
