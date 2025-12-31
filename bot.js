@@ -252,7 +252,8 @@ function getLeaderboard(page = 0) {
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
   let text = `*🏆 WEEKLY LEADERBOARD*\n`;
-text += `Want To Go Private*?* /wlprivate & /wlon\n`;
+text += `🔒 Want To Go Private?
+            /wlprivate • /wlon\n`;
 text += `——————————————————\n`;
   slice.forEach(([id, u], i) => {
     const name = u.privateWL
@@ -331,7 +332,7 @@ await sendOrEdit(
 
 📊 *STATS*
 ——————————————————
-   *Buy Role /shop & /buy* 
+    🛒 Buy Roles: /shop • /buy
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
