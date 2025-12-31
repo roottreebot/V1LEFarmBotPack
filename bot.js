@@ -437,33 +437,70 @@ bot.on('callback_query', async q => {
 
   // ================= AMOUNT TYPE SELECTION =================
 if (q.data === 'amount_cash' || q.data === 'amount_grams') {
-  const choice =
-    q.data === 'amount_cash'
+  s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
+  s.step = 'choose_amount'; // 🔴 IMPORTANT: revert step
+
+  const choiceText =
+    s.inputType === 'cash'
       ? '💵 Enter $ Amount'
       : '⚖️ Enter Grams';
 
-  // store input type
-  s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
-  s.step = 'waiting_input';
-
-  // send temporary message
   const tempMsg = await bot.sendMessage(
     id,
-    `✅ *You Chose:* ${choice}\n⌨️ *Waiting For Your Input...*`,
+    `✅ *You Chose:* ${choiceText}\n⌨️ *Waiting For Your Input...*`,
     { parse_mode: 'Markdown' }
   );
 
-  // auto delete after 3 seconds
   setTimeout(() => {
     bot.deleteMessage(id, tempMsg.message_id).catch(() => {});
   }, 3000);
 
-  // remove loading animation
   await bot.answerCallbackQuery(q.id);
-
   return;
 }
+  
+// ================= USER INPUT =================
+bot.on('message', async (msg) => {
+  const id = msg.chat.id;
+  if (!users[id] || !users[id].session) return;
 
+  const s = users[id].session;
+  if (msg.text.startsWith('/')) return;
+
+  if (s.step !== 'choose_amount' || !s.inputType) return;
+
+  const value = parseFloat(msg.text);
+  if (isNaN(value)) return;
+
+  const price = PRODUCTS[s.product].price;
+
+  if (s.inputType === 'cash') {
+    if (value < 20) return;
+    s.cash = value;
+    s.grams = (value / price).toFixed(2);
+  }
+
+  if (s.inputType === 'grams') {
+    if (value < 2) return;
+    s.grams = value;
+    s.cash = (value * price).toFixed(2);
+  }
+
+  // ✅ EDIT MAIN MENU (YOU HAVE CHOSEN)
+  const text =
+`🪴 *YOU HAVE CHOSEN*
+*${s.product}*
+
+⚖️ Grams: *${s.grams}g*
+💲 Total: *$${s.cash}*
+
+Press ✅ Confirm Order`;
+
+  await sendOrEdit(id, text, {
+    parse_mode: 'Markdown'
+  });
+});
+  
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
     if (!s.product || !s.grams || !s.cash) {
