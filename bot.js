@@ -79,6 +79,7 @@ function ensureUser(id, username) {
       username: username || '',
       lastOrderAt: 0,
       roles: [],
+      privateWL: false,
 
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
@@ -252,7 +253,11 @@ function getLeaderboard(page = 0) {
 
   let text = `*📊 Weekly Leaderboard*\n`;
   slice.forEach(([id, u], i) => {
-    text += `#${page * lbSize + i + 1} — *@${u.username || id}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
+    const name = u.privateWL
+      ? '👤 Private User'
+      : (u.username ? `@${u.username}` : id);
+
+    text += `#${page * lbSize + i + 1} — *${name}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
   });
 
   const buttons = [[
@@ -835,6 +840,38 @@ ${comparison}`;
     const sentMsg = await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
     setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 10000);
   }
+});
+
+// ================= LEADERBOARD PRIVACY =================
+
+bot.onText(/\/wlprivate/, (msg) => {
+  const id = msg.from.id;
+
+  if (!users[id]) {
+    users[id] = { xp: 0, level: 1, roles: [], privateWL: false };
+  }
+
+  users[id].privateWL = true;
+  saveUsers();
+
+  bot.sendMessage(id,
+    `🔒 Leaderboard Privacy Enabled\n\nYour name will now appear as:\n👤 Private User`
+  );
+});
+
+bot.onText(/\/wlon/, (msg) => {
+  const id = msg.from.id;
+
+  if (!users[id]) {
+    users[id] = { xp: 0, level: 1, roles: [], privateWL: false };
+  }
+
+  users[id].privateWL = false;
+  saveUsers();
+
+  bot.sendMessage(id,
+    `👁️ Leaderboard Privacy Disabled\n\nYour username will now be visible on the leaderboard.`
+  );
 });
 
 // ================= /reward =================
