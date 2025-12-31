@@ -251,7 +251,7 @@ function getLeaderboard(page = 0) {
   const totalPages = Math.ceil(list.length / lbSize) || 1;
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
-  let text = `*📊 WEEKLY LEADERBOARD*\n`;
+  let text = `*🏆 WEEKLY LEADERBOARD*\n`;
 text += `Want To Go Private*?* /wlprivate & /wlon\n`;
 text += `——————————————————\n`;
   slice.forEach(([id, u], i) => {
@@ -309,7 +309,7 @@ async function showMainMenu(id, lbPage = 0) {
   const lb = getLeaderboard(lbPage);
 
   let kb = [
-    ...Object.keys(PRODUCTS).map(p => [{ text: `📦 ${p}`, callback_data: `product_${p}` }]),
+    ...Object.keys(PRODUCTS).map(p => [{ text: `🛒 ${p}`, callback_data: `product_${p}` }]),
     lb.buttons[0],
 
   ];
@@ -345,7 +345,7 @@ ${orders}
 ${streakText(u)}
 ${lotteryLine}
 
-📦 *PRODUCT*
+🛍 *PRODUCT*
 ——————————————————
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
