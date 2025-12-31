@@ -275,7 +275,7 @@ async function sendOrEdit(id, text, opt = {}) {
         message_id: mid,
         ...opt
       });
-      return { message_id: mid }; // <-- return mock object for consistency
+      return { message_id: mid }; // return so session can store it
     } catch {
       sessions[id].mainMsgId = null;
     }
@@ -283,7 +283,7 @@ async function sendOrEdit(id, text, opt = {}) {
 
   const m = await bot.sendMessage(id, text, opt);
   sessions[id].mainMsgId = m.message_id;
-  return m; // <-- return the sent message object
+  return m; // return the sent message object
 }
 
 // ================= MAIN MENU =================
@@ -382,24 +382,18 @@ bot.on('callback_query', async q => {
     return showMainMenu(id);
   }
   
-  // ================= PRODUCT SELECTION =================
+// ================= PRODUCT SELECTION =================
 if (q.data.startsWith('product_')) {
   if (!meta.storeOpen) {
-    return bot.answerCallbackQuery(q.id, {
-      text: 'Store is closed',
-      show_alert: true
-    });
+    return bot.answerCallbackQuery(q.id, { text: 'Store is closed', show_alert: true });
   }
 
   const pending = users[id].orders.filter(o => o.status === 'Pending').length;
   if (pending >= 2) {
-    return bot.answerCallbackQuery(q.id, {
-      text: 'You already have 2 pending orders',
-      show_alert: true
-    });
+    return bot.answerCallbackQuery(q.id, { text: 'You already have 2 pending orders', show_alert: true });
   }
 
-  // Ensure session object is consistent
+  // ensure session is consistent
   if (!users[id].session) users[id].session = sessions[id];
   const s = users[id].session;
 
@@ -428,16 +422,12 @@ if (q.data.startsWith('product_')) {
 *${s.product}*
 
 💲 Price per gram: *$${price}*
-*Click Either One Once!(Dont Worry It Will Work) Then Type $Amount Or Grams*
+*Click Either One Once! Then Type $Amount Or Grams*
 
 ❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
-  // send menu and store message_id
-  const msg = await sendOrEdit(id, text, {
-    parse_mode: 'Markdown',
-    reply_markup: keyboard
-  });
-  s.mainMsgId = msg.message_id; // store correctly in session
+  const msg = await sendOrEdit(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  s.mainMsgId = msg.message_id; // store for editing
   return;
 }
 
@@ -449,16 +439,10 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
   s.inputType = q.data === 'amount_cash' ? 'cash' : 'grams';
   s.step = 'choose_amount';
 
-  const choiceText = s.inputType === 'cash'
-    ? '💵 Enter $ Amount'
-    : '⚖️ Enter Grams';
+  const choiceText = s.inputType === 'cash' ? '💵 Enter $ Amount' : '⚖️ Enter Grams';
 
   // send temporary 3-second message
-  const tempMsg = await bot.sendMessage(
-    id,
-    `✅ *You Chose:* ${choiceText}\n⌨️ *Waiting For Your Input...*`,
-    { parse_mode: 'Markdown' }
-  );
+  const tempMsg = await bot.sendMessage(id, `✅ *You Chose:* ${choiceText}\n⌨️ *Waiting For Your Input...*`, { parse_mode: 'Markdown' });
 
   setTimeout(() => {
     bot.deleteMessage(id, tempMsg.message_id).catch(() => {});
@@ -471,12 +455,10 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
 // ================= HANDLE USER TEXT INPUT =================
 bot.on('message', async (msg) => {
   const id = msg.chat.id;
-  if (!users[id]) return;
-
-  if (!users[id].session) users[id].session = sessions[id];
+  if (!users[id] || !users[id].session) return;
   const s = users[id].session;
 
-  if (!s.product || !s.inputType || s.step !== 'choose_amount') return;
+  if (!s.product || !s.inputType || s.step !== 'choose_amount' || !s.mainMsgId) return;
   if (msg.text.startsWith('/')) return;
 
   const value = parseFloat(msg.text.replace(/[^0-9.]/g, ''));
@@ -494,7 +476,7 @@ bot.on('message', async (msg) => {
     s.grams = parseFloat((s.cash / price).toFixed(2));
   }
 
-  s.step = 'confirm'; // move to confirm step
+  s.step = 'confirm';
 
   const text =
 `🪴 *YOU HAVE CHOSEN*
@@ -523,10 +505,7 @@ Press ✅ Confirm Order`;
     });
   } catch (err) {
     console.error('Failed to edit YOU HAVE CHOSEN:', err);
-    const fallbackMsg = await bot.sendMessage(id, text, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
+    const fallbackMsg = await bot.sendMessage(id, text, { parse_mode: 'Markdown', reply_markup: keyboard });
     s.mainMsgId = fallbackMsg.message_id;
   }
 
