@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V.2.00.15 ) ===
+// === ROOTTREE BOT (FINAL: V.2.00.16 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -466,11 +466,15 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
 
   const text = `
 🪴 *ORDER SUMMARY*
-*${s.product}*
+———————————————————
 
-💲 Price per gram: *$${price}*
+🛍 *YOU CHOSEN* *${s.product}*
+
+💲 PRICE PER GRAM: *$${price}*
 
 ✏️ *Enter ${s.inputType === 'cash' ? '$ amount' : 'grams'} now*
+
+———————————————————
 `;
 
   await sendOrEdit(id, text, {
