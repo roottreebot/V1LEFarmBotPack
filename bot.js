@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V.2.00.14 ) ===
+// === ROOTTREE BOT (FINAL: V.2.00.15 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -331,25 +331,25 @@ await sendOrEdit(
   id,
 `${storeStatus}
 
-——————————————————
+———————————————————
 ▏📊 *STATS*
-——————————————————
+———————————————————
 🛒 Buy Roles: /shop • /buy
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
 📈 *XP*: ${xpBar(u.xp, u.level)}
-——————————————————
+———————————————————
 ▏📦 *YOUR ORDERS* (*LAST 5*)
-——————————————————
+———————————————————
 ${orders}
-——————————————————
+———————————————————
 ▏🌟 *EXTRA*
-——————————————————
+———————————————————
 ${streakText(u)}
 ${lotteryLine}
-——————————————————
+———————————————————
 ▏🛍 *PRODUCTS*
-——————————————————
+———————————————————
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
 
@@ -1282,35 +1282,46 @@ bot.onText(/\/userhelp/, async (msg) => {
 
   const text = `
 👤 *USER COMMANDS*
+———————————————————
 
 🏆 *RANK*
-🏅 /rank — View your rank & XP
+———————————————————
+🏅 /rank — *View your rank & XP*
 
 🎰 *GAMBLE*
-🍀 /lottery — Enter Free Lottery & Possibly Win A Role
-🃏 /blackjack (10) — Play Blackjack (10 XP)
-🎰 /slots (10) — Play Slots (10 XP)
+———————————————————
+🍀 /lottery — *Enter Free Lottery & Possibly Win A Role*
+🃏 /blackjack (10) — *Play Blackjack (10 XP)*
+🎰 /slots (10) — *Play Slots (10 XP)*
 
 📅 *DAILY*
-🎡 /spin — Spin The Daily Wheel
-🎁 /daily — Claim daily Reward
+———————————————————
+🎡 /spin — *Spin The Daily Wheel*
+🎁 /daily — *Claim daily Reward*
 
 🧼 *CLEANER*
-🧹 /clear — Clear Your Messages / session 42H
+———————————————————
+🧹 /clear — *Clear Your Messages / session 42H*
 
 📝 *FEEDBACK*
-💬 /feedback <text> — Send Feedback To Admins
+———————————————————
+💬 /feedback <text> — *Send Feedback To Admins*
 
 👤 *PROFILE*
-🧾 /userprofile — View Your Profile
+———————————————————
+🧾 /userprofile — *View Your Profile*
 
 👑 *ROLES*
-🛒 /shop — View Role Shop
-🛍 /buy — Buy From Role Shop
+———————————————————
+🛒 /shop — *View Role Shop*
+🛍 /buy — *Buy From Role Shop*
 
 🛡 *PRIVACY*
-/wlprivate — Make Your Name On Weekly Leaderboard Private
-/wlon — Turns Private Weekly Leaderboard Off
+———————————————————
+/wlprivate — *Make Your Name On Weekly Leaderboard Private*
+/wlon — *Turns Private Weekly Leaderboard Off*
+
+———————————————————
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
@@ -1332,35 +1343,44 @@ bot.onText(/\/adminhelp/, async (msg) => {
 
   const text = `
 🏆 *ADMIN COMMANDS*
+———————————————————
 
 👨‍💻 *EXPORT / IMPORT*
-📦 /exportdb — Export Database
-📥 /importdb — Import Database
+———————————————————
+📦 /exportdb — *Export Database*
+📥 /importdb — *Import Database*
 
 💺 *USER MANAGEMENT*
-🚫 /ban @user — Ban A User
-✅ /unban @user — Unban A User
-📋 /banlist — View Banned Users
-🔄 /resetweekly @user — Reset Weekly XP
-❌️ /removerole @user <rolename> — Remove Users Role
-🎁 /reward @user <e.g. 10, level, XP, rolename> — Reward A User Something
-📊 /givewxp @user <e.g. 10 XP> — Give User Weekly XP
-📢 /broadcast <msg> — Message All Users
+———————————————————
+🚫 /ban @user — *Ban A User*
+✅ /unban @user — *Unban A User*
+📋 /banlist — *View Banned Users*
+🔄 /resetweekly @user — *Reset Weekly XP*
+❌️ /removerole @user <rolename> — *Remove Users Role*
+🎁 /reward @user <e.g. 10, XP, rolename> — *Reward A User Something*
+📊 /givewxp @user <e.g. 10 XP> — *Give User Weekly XP*
+📢 /broadcast <msg> — *Message All Users*
 
 📦 *ACTIVE*
-👥 /activeusers — Show Active Users
+———————————————————
+👥 /activeusers — *Show Active Users*
 
 🎁 *LOTTERY*
-🍀 /makelottery <role> — Make A Lottery
-🎰 /drawlottery — Draw The Lottery
+———————————————————
+🍀 /makelottery <role> — *Make A Lottery*
+🎰 /drawlottery — *Draw The Lottery*
 
 📝 *FEEDBACK*
-💬 /userfeedback — View Feedback
-🧹 /clearfeedback — Clear Feedback
+———————————————————
+💬 /userfeedback — *View Feedback*
+🧹 /clearfeedback — *Clear Feedback*
 
 🧼 *CLEANER*
-⏱ /uptime — Bot Uptime
-🗑 /clearpending <Optional @user> — Clear ALL Pending Orders
+———————————————————
+⏱ /uptime — *Bot Uptime*
+🗑 /clearpending <Optional @user> — *Clear ALL Pending Orders*
+
+———————————————————
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
