@@ -263,7 +263,7 @@ text += `——————————————————\n`;
 
     text += `▏#${page * lbSize + i + 1} — *${name}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
   });
-
+text += `——————————————————\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -352,8 +352,7 @@ ${lotteryLine}
 ——————————————————
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
-${lb.text}
-——————————————————`,
+${lb.text}`,
     { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
   );
 }
