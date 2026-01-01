@@ -1061,7 +1061,6 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
 📊 *STATS*
 ———————————————————
 🆔 ID: \`${targetId}\`
-${streakText(u)}
 👑 Level: *${u.level}*
 📈 XP: ${xpBar(u.xp, u.level)}
 📅 Weekly XP: *${u.weeklyXp}*
