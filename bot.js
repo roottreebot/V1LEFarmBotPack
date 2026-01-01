@@ -352,7 +352,8 @@ ${lotteryLine}
 ——————————————————
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
-${lb.text}`,
+${lb.text}
+——————————————————`,
     { parse_mode: 'Markdown', reply_markup: { inline_keyboard: kb } }
   );
 }
