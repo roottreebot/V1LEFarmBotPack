@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V2.00.02 ) ===
+// === ROOTTREE BOT (FINAL: V2.00.10 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -332,7 +332,7 @@ await sendOrEdit(
 
 📊 *STATS*
 ——————————————————
-    🛒 Buy Roles: /shop • /buy
+🛒 Buy Roles: /shop • /buy
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
 📊 *XP*: ${xpBar(u.xp, u.level)}
