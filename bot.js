@@ -332,7 +332,7 @@ await sendOrEdit(
 `${storeStatus}
 
 ———————————————————
-▏📊 *STATS*
+▏📊 *STATS* ● /userprofile
 ———————————————————
 🛒 Buy Roles: /shop • /buy
 👑 *Highest Role*: *${highestRole}*
@@ -1056,16 +1056,27 @@ bot.onText(/\/userprofile(?:\s+(.+))?/i, async (msg, match) => {
 
   const profileText = `
 👤 *User Profile*
+———————————————————
 
+📊 *STATS*
+———————————————————
 🆔 ID: \`${targetId}\`
+${streakText(u)}
 👑 Level: *${u.level}*
-📊 XP: ${xpBar(u.xp, u.level)}
+📈 XP: ${xpBar(u.xp, u.level)}
 📅 Weekly XP: *${u.weeklyXp}*
 
+🎁 *ROLES*
+———————————————————
+👑 *Highest Role*: *${highestRole}*
 🎭 Roles: ${roles}
 
+🌟 *EXTRA*
+———————————————————
 📦 Orders: *${u.orders?.length || 0}*
 🚫 Banned: *${u.banned ? 'Yes' : 'No'}*
+
+———————————————————
 `;
 
   try {
