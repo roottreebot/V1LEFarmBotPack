@@ -337,7 +337,7 @@ await sendOrEdit(
 🛒 Buy Roles: /shop • /buy
 👑 *Highest Role*: *${highestRole}*
 🎚 Level: *${u.level}*
-📊 *XP*: ${xpBar(u.xp, u.level)}
+📈 *XP*: ${xpBar(u.xp, u.level)}
 ——————————————————
 ▏📦 *YOUR ORDERS* (*LAST 5*)
 ——————————————————
