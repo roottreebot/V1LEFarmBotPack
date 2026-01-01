@@ -1099,11 +1099,22 @@ bot.onText(/\/spritepop/, async (msg) => {
 
   const text = `
 🥤 *SPRITE POPPERZ*
+━━━━━━━━━━━━━━━━
 
-🏅 *Created By @v1leshop*
+🏅 *CREATED BY* @v1leshop
 
-📝 A Refreshing Burst of Flavor!
-Dive into the crisp, sticky, and flavorful world of *Sprite Popperz*. Each nug sparkles with crystally trichomes, offering a smooth and delicious taste that delights your senses. Perfect for unwinding, boosting creativity, or simply enjoying a premium smoke. Let *Sprite Popperz* elevate your experience!
+✨ *Fresh. Crystally. Addictive.
+A sharp burst of citrus-style freshness wrapped in sticky, crystal-coated buds. Sprite Popperz delivers a smooth, flavorful hit with a clean finish that keeps you coming back.*
+
+🌿 *What to expect
+• Dense, frosty nugs
+• Sweet & refreshing taste
+• Smooth, enjoyable smoke
+• Perfect for chilling or getting creative*
+
+💨 *Light it up. Sit back. Let Sprite Popperz do the rest.*
+
+━━━━━━━━━━━━━━━━
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
@@ -1122,10 +1133,20 @@ bot.onText(/\/killergb/, async (msg) => {
 
   const text = `
 🍀 *KILLER GREEN BUDZ*
+━━━━━━━━━━━━━━━━
 
-🏅 *Created By @missusv1le*
+🏅 *CREATED BY* @missusv1le
 
-📝 *Killer Green Budz* Have A Taste Of This Green & Sticky Bud!
+🌿 *Pure Green Power.
+Killer Green Budz brings that classic, sticky green goodness with a bold, natural flavor and a smooth, heavy hit. Dense buds, rich aroma, and a clean burn make this a go-to for true green lovers.*
+
+🍃 *What to expect
+• Thick, sticky green nugs
+• Earthy, bold flavor
+• Strong, satisfying smoke
+• Perfect for late nights & deep chills*
+
+💨 *Old-school feel. New-level quality.*
 `;
 
   const sent = await bot.sendMessage(id, text, { parse_mode: 'Markdown' });
