@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V.2.00.21 ) ===
+// === ROOTTREE BOT (FINAL: V.2.00.22 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -303,10 +303,14 @@ async function showMainMenu(id, lbPage = 0) {
   const highestRole = getHighestRole(u);
 
   const orders = u.orders.length
-    ? u.orders.map(o =>
-        `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`
-      ).join('\n')
-    : '_No orders yet_';
+  ? u.orders.map(o => {
+      const isBulk = parseFloat(o.cash) >= 400;
+
+      return isBulk
+        ? `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — 🧱 *Bulk Order* — *${o.status}*`
+        : `${o.status === '✅ Accepted' ? '🟢' : '⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`;
+    }).join('\n')
+  : '_No orders yet_';
 
   const lb = getLeaderboard(lbPage);
 
