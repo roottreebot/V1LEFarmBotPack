@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V.2.00.17 ) ===
+// === ROOTTREE BOT (FINAL: V.2.00.20 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -218,6 +218,11 @@ function getLotteryMenuText() {
   return `🎟 /lottery Reward: ${meta.lottery.role}`;
 }
 
+// ================= DROP SYSTEM =================
+if (!meta.drop) {
+  meta.drop = { active: false, title: '', description: '' };
+}
+
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -294,6 +299,10 @@ async function sendOrEdit(id, text, opt = {}) {
   sessions[id].mainMsgId = m.message_id;
 }
 
+const dropText = meta.drop.active
+  ? `🟢 *DROP LIVE:* ${meta.drop.title}`
+  : `🔴 *NO ACTIVE DROP*`;
+
 // ================= MAIN MENU =================
 async function showMainMenu(id, lbPage = 0) {
   ensureUser(id);
@@ -342,7 +351,7 @@ await sendOrEdit(
 ———————————————————
 ${orders}
 ———————————————————
-▏🌟 *EXTRA*
+▏🌟 *EXTRA* ${storeStatus} *DROP STATUS:* ${dropText}
 ———————————————————
 ${streakText(u)}
 ${lotteryLine}
@@ -375,6 +384,22 @@ bot.on('callback_query', async q => {
   const s = sessions[id] || (sessions[id] = {});
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
+ // ================= DROP CALLBACK HANDLERS =================
+if (ADMIN_IDS.includes(id) && q.data === 'drop_set_start') {
+  meta.drop.active = true;
+  saveAll();
+  sessions[id].dropStep = 'title';
+  return bot.sendMessage(id, '🖊️ *Enter Drop Title:*', { parse_mode: 'Markdown' });
+}
+
+if (ADMIN_IDS.includes(id) && q.data === 'drop_end') {
+  meta.drop.active = false;
+  meta.drop.title = '';
+  meta.drop.description = '';
+  saveAll();
+  return bot.sendMessage(id, '🔴 Drop ended.', { parse_mode: 'Markdown' });
+}
+  
   // ================= NAVIGATION =================
   if (q.data === 'reload') {
     s.step = null;
@@ -538,6 +563,21 @@ Press ✅ Confirm Order
     }
   });
 });
+  
+ // ================= DROP INPUT SESSION =================
+if (sessions[id]?.dropStep === 'title' && ADMIN_IDS.includes(id)) {
+  meta.drop.title = msg.text.trim();
+  sessions[id].dropStep = 'desc';
+  saveAll();
+  return bot.sendMessage(id, '🖊️ *Enter Drop Description:*', { parse_mode: 'Markdown' });
+}
+
+if (sessions[id]?.dropStep === 'desc' && ADMIN_IDS.includes(id)) {
+  meta.drop.description = msg.text.trim();
+  sessions[id].dropStep = null;
+  saveAll();
+  return bot.sendMessage(id, `✅ Drop Created:\n*${meta.drop.title}*\n${meta.drop.description}`, { parse_mode: 'Markdown' });
+}
   
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
@@ -1174,6 +1214,32 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
     bot.deleteMessage(id, sent.message_id).catch(() => {});
     bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
+});
+
+// ================= /drops =================
+bot.onText(/\/drops/, async msg => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const drop = meta.drop;
+  const status = drop.active ? `🟢 LIVE: *${drop.title}*` : '🔴 No Active Drop';
+
+  const text =
+    `🎁 *DROPS CONTROL PANEL*\nStatus: ${status}\n\n` +
+    `📝 Current: ${drop.active ? drop.description : '_None_'}`;
+
+  const kb = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🟢 Start/Edit Drop', callback_data: 'drop_set_start' }],
+        [{ text: '🔴 End Drop', callback_data: 'drop_end' }],
+        [{ text: '↩️ Back to Menu', callback_data: 'reload' }]
+      ]
+    },
+    parse_mode: 'Markdown'
+  };
+
+  await bot.sendMessage(id, text, kb);
 });
 
 // ================= /shop COMMAND =================
