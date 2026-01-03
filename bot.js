@@ -351,14 +351,16 @@ await sendOrEdit(
 ———————————————————
 ${orders}
 ———————————————————
-▏🌟 *EXTRA* ${storeStatus} *🚘 DROP:*
+▏🌟 *EXTRA* ${storeStatus}
 ———————————————————
 ${streakText(u)}
 ${lotteryLine}
-${dropText}
 ———————————————————
 ▏🛍 *PRODUCTS* ● ${storeStatus}
 ———————————————————
+*🚘 DROP:*
+— ${dropText}
+
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
 
