@@ -330,9 +330,9 @@ async function showMainMenu(id, lbPage = 0) {
 
   const storeStatus = meta.storeOpen ? '😙💨 *STORE OPEN*' : '😙❌️ *STORE CLOSED*';
 
-const dropStatus = meta.drop.active
-  ? `🟢 *DROP LIVE:* ${meta.drop.title}`
-  : `🔴 *NO ACTIVE DROP*`;
+const dropText = meta.drop.active
+  ? `🟢 *LIVE:* ${meta.drop.title}\n_${meta.drop.description}_`
+  : `🔴 No active drop`;
   
   const lotteryLine = getLotteryMenuText();
 
@@ -358,9 +358,6 @@ ${lotteryLine}
 ———————————————————
 ▏🛍 *PRODUCTS* ● ${storeStatus}
 ———————————————————
-*🚘 DROP:*
-— ${dropText}
-
 🥤 *Sprite Popperz* - *Info* /spritepop
 🍃 *Killer Green Budz* - *Info* /killergb
 
@@ -373,22 +370,6 @@ ${lb.text}`,
 bot.onText(/\/start/, async msg => {
   const id = msg.chat.id;
   ensureUser(id, msg.from.username);
-
-  if (sessions[id]?.dropStep === 'title' && ADMIN_IDS.includes(id)) {
-  delete sessions[id].dropStep;
-  meta.drop.title = msg.text.trim();
-  meta.drop.active = true; // auto-activate
-  sessions[id].dropStep = 'desc';
-  saveAll();
-  return bot.sendMessage(id, '📝 *Enter Drop Description:*', { parse_mode: 'Markdown' });
-}
-
-if (sessions[id]?.dropStep === 'desc' && ADMIN_IDS.includes(id)) {
-  meta.drop.description = msg.text.trim();
-  delete sessions[id].dropStep;
-  saveAll();
-  return bot.sendMessage(id, `✅ Drop Live!\n*${meta.drop.title}*\n${meta.drop.description}`, { parse_mode: 'Markdown' });
-}
 
   // Always show main menu using the unified editor
   await showMainMenu(id);
@@ -580,21 +561,6 @@ Press ✅ Confirm Order
     }
   });
 });
-  
- // ================= DROP INPUT SESSION =================
-if (sessions[id]?.dropStep === 'title' && ADMIN_IDS.includes(id)) {
-  meta.drop.title = msg.text.trim();
-  sessions[id].dropStep = 'desc';
-  saveAll();
-  return bot.sendMessage(id, '🖊️ *Enter Drop Description:*', { parse_mode: 'Markdown' });
-}
-
-if (sessions[id]?.dropStep === 'desc' && ADMIN_IDS.includes(id)) {
-  meta.drop.description = msg.text.trim();
-  sessions[id].dropStep = null;
-  saveAll();
-  return bot.sendMessage(id, `✅ Drop Created:\n*${meta.drop.title}*\n${meta.drop.description}`, { parse_mode: 'Markdown' });
-}
   
   // ================= CONFIRM ORDER =================
   if (q.data === 'confirm_order') {
@@ -1234,27 +1200,32 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
 });
 
 // ================= /drops =================
-bot.onText(/\/drops/, async msg => {
+bot.on('message', async msg => {
   const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
-  const drop = meta.drop;
+  const text = msg.text;
+  if (!text || text.startsWith('/')) return;
 
-  const text =
-    `🎁 *DROPS PANEL*\nStatus: ${drop.active ? '🟢 LIVE' : '🔴 NONE'}\n\n` +
-    (drop.active ? `*${drop.title}*\n${drop.description}` : '_No active drop_');
+  if (!sessions[id] || !ADMIN_IDS.includes(id)) return;
 
-  const options = {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🟢 Start/Edit Drop', callback_data: 'drop_set' }],
-        [{ text: '🔴 End Drop', callback_data: 'drop_end' }],
-        [{ text: '↩️ Back', callback_data: 'reload' }]
-      ]
-    }
-  };
+  // ===== DROP INPUT =====
+  if (sessions[id].dropStep === 'title') {
+    meta.drop.title = text.trim();
+    meta.drop.active = true;
+    sessions[id].dropStep = 'desc';
+    saveAll();
+    return bot.sendMessage(id, '📝 *Enter Drop Description:*', { parse_mode: 'Markdown' });
+  }
 
-  await bot.sendMessage(id, text, options);
+  if (sessions[id].dropStep === 'desc') {
+    meta.drop.description = text.trim();
+    delete sessions[id].dropStep;
+    saveAll();
+    return bot.sendMessage(
+      id,
+      `✅ *DROP LIVE*\n\n*${meta.drop.title}*\n${meta.drop.description}`,
+      { parse_mode: 'Markdown' }
+    );
+  }
 });
 
 // ================= /shop COMMAND =================
