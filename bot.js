@@ -344,7 +344,7 @@ await sendOrEdit(
 `
 v2.0.0 • build 27
 ———————————————————
-▏📊 *STATS* ● /userprofile
+▏✖ ▏📊 *STATS* ● /userprofile
 ———————————————————
 ▏🛒 Buy Roles: /shop • /buy
 ———————————————————
@@ -354,20 +354,20 @@ v2.0.0 • build 27
 ———————————————————
 
 ———————————————————
-▏📦 *YOUR ORDERS* (*LAST 5*)
+▏✖ ▏📦 *YOUR ORDERS* (*LAST 5*)
 ———————————————————
 ${orders}
 ———————————————————
 
 ———————————————————
-▏🌟 *EXTRA*
+▏✖ ▏🌟 *EXTRA*
 ———————————————————
 ▏${streakText(u)}
 ▏${lotteryLine}
 ———————————————————
 
 ———————————————————
-▏🛍 *PRODUCTS* ● ${storeStatus}
+▏✖ ▏🛍 *PRODUCTS* ● ${storeStatus}
 ———————————————————
 ▏${dropoffStatus}
 ———————————————————
