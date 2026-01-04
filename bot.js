@@ -261,7 +261,7 @@ text += `———————————————————\n`;
       ? '👤 Private User'
       : (u.username ? `@${u.username}` : id);
 
-    text += `▏#${page * lbSize + i + 1} — *${name}* — Lv *${u.level}* — XP *${u.weeklyXp}*\n`;
+    text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
   const buttons = [[
