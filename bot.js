@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.0 • build 27 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.1 • build 2 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -266,6 +266,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
+text += `v2.0.1 • build 2\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -346,7 +347,6 @@ if (!meta.dropoff) meta.dropoff = false;
 await sendOrEdit(
   id,
 `
-v2.0.0 • build 27
 ———————————————————
 ▏×  ▏📊 *STATS* ● /userprofile
 ———————————————————
@@ -898,6 +898,21 @@ bot.onText(/\/createtoken(?: (.+))?/, async (msg, match) => {
   saveAll();
 
   bot.sendMessage(id, `✅ Token created: *${token}*`, { parse_mode: 'Markdown' });
+});
+
+// ================= /DELETETOKEN =================
+bot.onText(/\/deletetoken (.+)/, async (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const token = match[1].trim().toUpperCase();
+  if (!meta.tokens || !meta.tokens.includes(token)) {
+    return bot.sendMessage(id, '❌ Token not found.');
+  }
+
+  meta.tokens = meta.tokens.filter(t => t !== token);
+  saveAll();
+  return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
 });
 
 // ================= /clearpending =================
@@ -1575,7 +1590,10 @@ bot.onText(/\/adminhelp/, async (msg) => {
 📥 /importdb — *Import Database*
 
 🪙 *TOKEN GENERATOR*
+———————————————————
 /createtoken — Create Token For User Access
+/tokenlist — View Active Tokens
+/deletetoken — Delete Current Active Tokens
 
 💺 *USER MANAGEMENT*
 ———————————————————
@@ -2283,6 +2301,26 @@ bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
   setTimeout(() => {
     bot.deleteMessage(userId, notice.message_id).catch(() => {});
   }, 8000);
+});
+
+// ================= /TOKENLIST =================
+bot.onText(/\/tokenlist/, async (msg) => {
+  const id = msg.chat.id;
+
+  if (!ADMIN_IDS.includes(id)) {
+    return bot.sendMessage(id, '❌ You are not allowed to use this command.');
+  }
+
+  if (!meta.tokens || meta.tokens.length === 0) {
+    return bot.sendMessage(id, 'ℹ️ There are no unused tokens.');
+  }
+
+  const tokenList = meta.tokens.join('\n');
+  return bot.sendMessage(
+    id,
+    `📝 *Unused Tokens:*\n\n${tokenList}`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // ================= /spin =================
