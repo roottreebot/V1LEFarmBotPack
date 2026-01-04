@@ -252,7 +252,7 @@ function getLeaderboard(page = 0) {
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
   let text = `———————————————————\n`;
-text += `*▏× ▏🏆 WEEKLY LEADERBOARD*\n`;
+text += `▏×  ▏*🏆 WEEKLY LEADERBOARD*\n`;
 text += `———————————————————\n`; 
 text += `▏🔒 Want To Go Private? 
 ▏/wlprivate • /wlon\n`;
@@ -355,20 +355,20 @@ v2.0.0 • build 27
 ———————————————————
 
 ———————————————————
-▏× ▏📦 *YOUR ORDERS* (*LAST 5*)
+▏×  ▏📦 *YOUR ORDERS* (*LAST 5*)
 ———————————————————
 ${orders}
 ———————————————————
 
 ———————————————————
-▏× ▏🌟 *EXTRA*
+▏×  ▏🌟 *EXTRA*
 ———————————————————
 ▏${streakText(u)}
 ▏${lotteryLine}
 ———————————————————
 
 ———————————————————
-▏× ▏🛍 *PRODUCTS* 
+▏×  ▏🛍 *PRODUCTS* 
 ———————————————————
 ▏${storeStatus}
 ▏${dropoffStatus}
