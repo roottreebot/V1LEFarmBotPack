@@ -309,10 +309,11 @@ async function showMainMenu(id, lbPage = 0) {
   const orders = u.orders.length
   ? u.orders.map(o => {
       const isBulk = parseFloat(o.cash) >= 400;
+      const statusIcon = o.status === '✅ Accepted' ? '🟢' : '⚪';
 
       return isBulk
-        ? `${o.status === '✅' ? '▏🟢' : '▏⚪'} *${o.product}* — 🧱 *Bulk Order* — *${o.status}*`
-        : `${o.status === '✅' ? '▏🟢' : '▏⚪'} *${o.product}* — ${o.grams}g — $${o.cash} — *${o.status}*`;
+        ? `▏${statusIcon} *${o.product}* — 🧱 *Bulk Order*`
+        : `▏${statusIcon} *${o.product}* — ${o.grams}g — $${o.cash}`;
     }).join('\n')
   : '_No orders yet_';
 
