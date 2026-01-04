@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: V.2.00.25 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.0 • build 26 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -342,13 +342,17 @@ if (!meta.dropoff) meta.dropoff = false;
 await sendOrEdit(
   id,
 `
+v2.0.0 • build 26
 ———————————————————
 ▏📊 *STATS* ● /userprofile
 ———————————————————
-🛒 Buy Roles: /shop • /buy
-👑 *Highest Role*: *${highestRole}*
-🎚 Level: *${u.level}*
-📈 *XP*: ${xpBar(u.xp, u.level)}
+▏🛒 Buy Roles: /shop • /buy
+———————————————————
+▏👑 *Highest Role*: *${highestRole}*
+▏🎚 Level: *${u.level}*
+▏${xpBar(u.xp, u.level)}
+———————————————————
+
 ———————————————————
 ▏📦 *YOUR ORDERS* (*LAST 5*)
 ———————————————————
