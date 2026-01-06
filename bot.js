@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.2 • build 1 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.2 • build 2 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -291,7 +291,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.2 • build 1\n`;
+text += `v2.0.2 • build 2\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -984,6 +984,89 @@ bot.onText(/\/clearpending(?:\s+(@?\w+))?/, (msg, match) => {
 
     return bot.sendMessage(chatId, `✅ Cleared ${pendingOrders.length} pending order(s) for @${cleanUsername}.`);
   }
+});
+
+// ================= ADMIN /ORDERS =================
+bot.onText(/\/orders/, async (msg) => {
+  const id = msg.chat.id;
+
+  if (!ADMIN_IDS.includes(id)) return;
+
+  let pendingOrders = [];
+  let text = '🧾 *PENDING ORDERS*\n\n';
+
+  for (const [uid, u] of Object.entries(users)) {
+    u.orders.forEach((o, index) => {
+      if (o.status === 'Pending') {
+        pendingOrders.push({ uid, index, order: o });
+      }
+    });
+  }
+
+  if (!pendingOrders.length) {
+    return bot.sendMessage(id, '✅ No pending orders right now.', { parse_mode: 'Markdown' });
+  }
+
+  pendingOrders.forEach((o, i) => {
+    text += `▏${i + 1} ● User: @${users[o.uid].username || o.uid}\n`;
+    text += `▏Product: ${o.order.product}\n`;
+    text += `▏Grams: ${o.order.grams}\n`;
+    text += `▏Price: $${o.order.cash}\n\n`;
+  });
+
+  return bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+});
+
+// ================= ADMIN /ACCEPT =================
+bot.onText(/\/accept (\d+)/, async (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const num = parseInt(match[1]) - 1;
+  const allPending = [];
+
+  for (const [uid, u] of Object.entries(users)) {
+    u.orders.forEach((o, index) => {
+      if (o.status === 'Pending') allPending.push({ uid, index, order: o });
+    });
+  }
+
+  if (!allPending[num]) return bot.sendMessage(id, '❌ Invalid order number.');
+
+  const { uid, index } = allPending[num];
+  users[uid].orders[index].status = '✅ Accepted';
+  saveAll();
+
+  bot.sendMessage(id, `✅ Order #${num + 1} accepted.`);
+
+  // Update user's main menu
+  showMainMenu(uid);
+});
+
+// ================= ADMIN /REJECT =================
+bot.onText(/\/reject (\d+)/, async (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const num = parseInt(match[1]) - 1;
+  const allPending = [];
+
+  for (const [uid, u] of Object.entries(users)) {
+    u.orders.forEach((o, index) => {
+      if (o.status === 'Pending') allPending.push({ uid, index, order: o });
+    });
+  }
+
+  if (!allPending[num]) return bot.sendMessage(id, '❌ Invalid order number.');
+
+  const { uid, index } = allPending[num];
+  users[uid].orders[index].status = '❌ Rejected';
+  saveAll();
+
+  bot.sendMessage(id, `❌ Order #${num + 1} rejected.`);
+
+  // Update user's main menu
+  showMainMenu(uid);
 });
 
 // ================= /removerole =================
