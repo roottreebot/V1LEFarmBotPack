@@ -102,7 +102,6 @@ function ensureUser(id, username) {
       orders: [],
       banned: false,
       username: username || '',
-      note: s.note || null,
       lastOrderAt: 0,
       roles: [],
       verified: false,
@@ -580,49 +579,6 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
 
   return;
 }
-
-// ================= USER AMOUNT INPUT =================
-if (s.step === 'amount') {
-  // ... your existing code for grams/cash
-
-  s.step = 'note'; // Move to note step
-  return bot.sendMessage(id, '📝 Optional: Enter a note for your order (or type "skip" to continue).');
-}
-
-  // ================= ORDER NOTE =================
-bot.on('message', async msg => {
-  const id = msg.chat.id;
-  const text = msg.text;
-
-  if (!text || text.startsWith('/')) return;
-  if (!sessions[id]) return;
-
-  const s = sessions[id];
-  if (s.step !== 'note') return;
-
-  s.note = text.toLowerCase() === 'skip' ? null : text.trim(); // Save note
-  s.step = 'confirm';
-
-  const summary = `
-🪴 *ORDER SUMMARY*
-🛍 YOU CHOSE *${s.product}*
-⚖️ *AMOUNT*: *${s.grams}g*
-💲 *TOTAL*: *$${s.cash}*
-${s.note ? `📝 *Note:* ${s.note}` : ''}
-  
-Press ✅ Confirm Order
-`;
-
-  await sendOrEdit(id, summary, {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [[
-        { text: '✅ Confirm Order', callback_data: 'confirm_order' },
-        { text: '↩️ Back', callback_data: 'reload' }
-      ]]
-    }
-  });
-});
   
   // ================= USER AMOUNT INPUT =================
 bot.on('message', async msg => {
