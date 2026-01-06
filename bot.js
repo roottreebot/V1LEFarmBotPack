@@ -237,9 +237,9 @@ function getHighestRole(user) {
 
 function getLotteryMenuText() {
   if (!meta.lottery || !meta.lottery.active || !meta.lottery.role) {
-    return '🎟 /lottery *Reward*: None';
+    return '🎟 /lottery Reward: None';
   }
-  return `🎟 /lottery *Reward*: ${meta.lottery.role}`;
+  return `🎟 /lottery Reward: ${meta.lottery.role}`;
 }
 
 // ================= SESSIONS =================
@@ -325,18 +325,12 @@ async function showMainMenu(id, lbPage = 0) {
   ensureUser(id);
   cleanupOrders(id);
 
-// Build animated store line
-  const animFrames = ['🟢','🟢●','🟢●●','🟢●●●'];
-  if (!sessions[id].animIndex) sessions[id].animIndex = 0;
-  const anim = animFrames[sessions[id].animIndex];
-  sessions[id].animIndex = (sessions[id].animIndex + 1) % animFrames.length;
-  
   const u = users[id];
   const highestRole = getHighestRole(u);
 
   const dropoffStatus = meta.dropoff
-  ? '🚘 *DROP-OFF:* 🟢 ON'
-  : '🚘 *DROP-OFF:* 🔴 OFF';
+  ? '🚗 *DROP OFF:* 🟢 ON'
+  : '🚗 *DROP OFF:* 🔴 OFF';
   
   const orders = u.orders.length
   ? u.orders.map(o => {
@@ -369,10 +363,7 @@ async function showMainMenu(id, lbPage = 0) {
   // ================= DROP-OFF STATUS =================
 if (!meta.dropoff) meta.dropoff = false;
   
-  const anim = getNextStoreAnim();
-const storeStatus = meta.storeOpen
-  ? ` *${anim} STORE OPEN*`
-  : '❌️ *STORE CLOSED*';
+  const storeStatus = meta.storeOpen ? '😙💨 *STORE OPEN*' : '😙❌️ *STORE CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
@@ -387,7 +378,7 @@ await sendOrEdit(
 ▏👑 *Highest Role*: *${highestRole}*
 ▏🎚 *Level*: *${u.level}*
 ▏${xpBar(u.xp, u.level)}
-▏*Rank*: ${getRankByLevel(u.level)}
+▏💫 *Rank*: ${getRankByLevel(u.level)}
 ———————————————————
 
 ———————————————————
@@ -406,7 +397,7 @@ ${orders}
 ———————————————————
 ▏×  ▏🛍 *PRODUCTS* 
 ———————————————————
-▏${storeText}
+▏${storeStatus}
 ▏${dropoffStatus}
 ———————————————————
 ▏🥤 *Sprite Popperz* - *Info* /spritepop
@@ -424,18 +415,14 @@ bot.onText(/\/start/, async (msg) => {
   ensureUser(id);
   const u = users[id];
 
-  // if not verified, ask for token but STILL send menu
+  // If user isn't verified, just mark session to wait for token
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
-    sessions[id].awaitingToken = true;
-
-    await bot.sendMessage(id, "🔑 Please enter your token to verify:");
-    // STILL show the menu so mainMsgId exists
-    showMainMenu(id);
-    return;
+    sessions[id].awaitingToken = true; // mark that we're waiting for token
+    return; // do not send any message
   }
 
-  // user is verified — normal
+  // Otherwise show main menu
   showMainMenu(id);
 });
 
@@ -2556,22 +2543,3 @@ bot.onText(/\/importdb/, msg => {
     bot.on('message',listener);
   });
 });
-
-// ================= MENU AUTO-ANIMATION =================
-setInterval(() => {
-  for (const id in sessions) {
-    const s = sessions[id];
-
-    // ONLY edit if menu has been sent
-    if (!s.mainMsgId) continue;
-
-    // skip cases where user is in input mode
-    if (s.awaitingToken || s.awaitingInput) continue;
-
-    try {
-      showMainMenu(Number(id));
-    } catch (err) {
-      console.error("⚠ Failed to refresh menu for", id);
-    }
-  }
-}, 7000);
