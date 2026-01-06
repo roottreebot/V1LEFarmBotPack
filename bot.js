@@ -45,21 +45,6 @@ function getRankByLevel(level) {
   return rank;
 }
 
-// 🔁 Animated Store Indicator
-const storeAnimFrames = [
-  '🟢',
-  '🟢●',
-  '🟢●●',
-  '🟢●●●'
-];
-let storeAnimIndex = 0;
-
-function getNextStoreAnim() {
-  const frame = storeAnimFrames[storeAnimIndex];
-  storeAnimIndex = (storeAnimIndex + 1) % storeAnimFrames.length;
-  return frame;
-}
-
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
