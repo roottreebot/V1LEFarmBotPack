@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.1 • build 2 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.2 • build 1 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -16,11 +16,34 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ================= PRODUCT IMAGES =================
-const PRODUCT_IMAGES = {
-  "Sprite Popperz": "AgACAgUAAxkBAAEZvctpUPlkGuG0WnP2yvNA0zJokGMlzQACQxdrG33PiFYuCnIBzcfl2QEAAwIAA3kAAzYE",
-  "Killer Green Budz": "AgACAgUAAxkBAAEZvc1pUPnAAAFN5xCcAg5FQDtJEZwJDokAAkwXaxt9z4hW8gu2BS4FC-ABAAMCAAN5AAM2BA"
-};
+// ================= RANK ROLES =================
+const levelRanks = [
+  { min: 0,    name: '🥉 Bronze' },
+  { min: 5,    name: '🥉 Bronze I' },
+  { min: 10,   name: '🥉 Bronze II' },
+  { min: 25,   name: '🥈 Silver' },
+  { min: 30,   name: '🥈 Silver II' },
+  { min: 35,   name: '🥈 Silver III' },
+  { min: 45,   name: '🥇 Gold' },
+  { min: 60,   name: '🥇 Gold I' },
+  { min: 70,   name: '🥇 Gold II' },
+  { min: 80,   name: '🥇 Gold III' },
+  { min: 100,  name: '💎 Platnium' },
+  { min: 120,  name: '💎 Platnium I' },
+  { min: 140,  name: '💎 Platnium II' },
+  { min: 165,  name: '💎 Platnium III' },
+  { min: 250,  name: '🌌 Galaxy' },
+  { min: 300,  name: '🌌 Galaxy I' },
+  { min: 350,  name: '🌌 Galaxy II' },
+  { min: 450,  name: '🌌 Galaxy III' },
+];
+function getRankByLevel(level) {
+  let rank = levelRanks[0].name;
+  for (const r of levelRanks) {
+    if (level >= r.min) rank = r.name;
+  }
+  return rank;
+}
 
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
@@ -266,7 +289,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.1 • build 2\n`;
+text += `v2.0.2 • build 1\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -304,10 +327,6 @@ async function showMainMenu(id, lbPage = 0) {
 
   const u = users[id];
   const highestRole = getHighestRole(u);
-  const level = getLevelFromXP(u.xp);
-  const nextXP = getXPForNextLevel(level);
-  const rank = getRankByLevel(level);
-  const bar = xpBar(u.xp, nextXP);
 
   const dropoffStatus = meta.dropoff
   ? '🚗 *DROP OFF:* 🟢 ON'
@@ -357,9 +376,9 @@ await sendOrEdit(
 ▏🛒 Buy Roles: /shop • /buy
 ———————————————————
 ▏👑 *Highest Role*: *${highestRole}*
-▏🎚 Level: *${u.level}*
+▏🎚 *Level*: *${u.level}*
 ▏${xpBar(u.xp, u.level)}
-▏👑 Rank: ${rank}
+▏💫 *Rank*: ${getRankByLevel(u.level)}
 ———————————————————
 
 ———————————————————
@@ -1323,56 +1342,6 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
     bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
 });
-
-// ================= LEVEL RANK SYSTEM =================
-
-// Rank titles by level
-const levelRanks = [
-  { min: 0,    name: '🥉 Bronze' },
-  { min: 5,    name: '🥉 Bronze I' },
-  { min: 10,   name: '🥉 Bronze II' },
-  { min: 25,   name: '🥈 Silver' },
-  { min: 30,   name: '🥈 Silver I' },
-  { min: 40,  name: '🥈 Silver II' },
-  { min: 45,  name: '🥈 Silver III' },
-  { min: 50,  name: '🥇 Gold' },
-  { min: 70, name: '🥇 Gold I' },
-  { min: 85, name: '🥇 Gold II' },
-  { min: 100, name: '🥇 Gold III' },
-  { min: 150, name: '💎 Platnium' },
-  { min: 200, name: '💎 Platnium I' },
-  { min: 250, name: '💎 Platnium II' },
-  { min: 300, name: '💎 Platnium III' },
-  { min: 400, name: '🌌 Galaxy' },
-  { min: 500, name: '🌌 Galaxy I' },
-  { min: 400, name: '🌌 Galaxy II' },
-  { min: 400, name: '🌌 Galaxy III' },
-];
-
-// XP → Level
-function getLevelFromXP(xp) {
-  return Math.floor(Math.sqrt(xp / 5));
-}
-
-// XP needed for next level
-function getXPForNextLevel(level) {
-  return Math.pow(level + 1, 2) * 5;
-}
-
-// Level → Rank name
-function getRankByLevel(level) {
-  let rank = levelRanks[0].name;
-  for (const r of levelRanks) {
-    if (level >= r.min) rank = r.name;
-  }
-  return rank;
-}
-
-// XP progress bar
-function xpBar(current, max, size = 10) {
-  const filled = Math.round((current / max) * size);
-  return '🟩'.repeat(filled) + '⬜'.repeat(size - filled);
-}
 
 // ================= /shop COMMAND =================
 const SHOP_PAGE_SIZE = 5;
