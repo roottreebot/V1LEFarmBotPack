@@ -340,6 +340,12 @@ async function showMainMenu(id, lbPage = 0) {
   ensureUser(id);
   cleanupOrders(id);
 
+// Build animated store line
+  const animFrames = ['🟢','🟢●','🟢●●','🟢●●●'];
+  if (!sessions[id].animIndex) sessions[id].animIndex = 0;
+  const anim = animFrames[sessions[id].animIndex];
+  sessions[id].animIndex = (sessions[id].animIndex + 1) % animFrames.length;
+  
   const u = users[id];
   const highestRole = getHighestRole(u);
 
