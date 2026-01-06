@@ -433,14 +433,18 @@ bot.onText(/\/start/, async (msg) => {
   ensureUser(id);
   const u = users[id];
 
-  // If user isn't verified, just mark session to wait for token
+  // if not verified, ask for token but STILL send menu
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
-    sessions[id].awaitingToken = true; // mark that we're waiting for token
-    return; // do not send any message
+    sessions[id].awaitingToken = true;
+
+    await bot.sendMessage(id, "🔑 Please enter your token to verify:");
+    // STILL show the menu so mainMsgId exists
+    showMainMenu(id);
+    return;
   }
 
-  // Otherwise show main menu
+  // user is verified — normal
   showMainMenu(id);
 });
 
@@ -2566,9 +2570,17 @@ bot.onText(/\/importdb/, msg => {
 setInterval(() => {
   for (const id in sessions) {
     const s = sessions[id];
-    if (!s || !s.mainMsgId) continue;
+
+    // ONLY edit if menu has been sent
+    if (!s.mainMsgId) continue;
+
+    // skip cases where user is in input mode
     if (s.awaitingToken || s.awaitingInput) continue;
 
-    showMainMenu(Number(id));
+    try {
+      showMainMenu(Number(id));
+    } catch (err) {
+      console.error("⚠ Failed to refresh menu for", id);
+    }
   }
 }, 7000);
