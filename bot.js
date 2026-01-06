@@ -36,6 +36,8 @@ const levelRanks = [
   { min: 300,  name: '🌌 Galaxy I' },
   { min: 350,  name: '🌌 Galaxy II' },
   { min: 450,  name: '🌌 Galaxy III' },
+  { min: 600,  name: '🌌 Galaxy IIII' },
+  { min: 1000,  name: '🌌 Galaxy IV' },
 ];
 function getRankByLevel(level) {
   let rank = levelRanks[0].name;
