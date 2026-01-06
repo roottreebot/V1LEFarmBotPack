@@ -45,6 +45,21 @@ function getRankByLevel(level) {
   return rank;
 }
 
+// 🔁 Animated Store Indicator
+const storeAnimFrames = [
+  '🟢',
+  '🟢●',
+  '🟢●●',
+  '🟢●●●'
+];
+let storeAnimIndex = 0;
+
+function getNextStoreAnim() {
+  const frame = storeAnimFrames[storeAnimIndex];
+  storeAnimIndex = (storeAnimIndex + 1) % storeAnimFrames.length;
+  return frame;
+}
+
 // ================= SLOTS CONFIG =================
 const SLOT_COOLDOWN = 10 * 1000; // 10s
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍉', '⭐'];
@@ -242,21 +257,6 @@ function getLotteryMenuText() {
   return `🎟 /lottery *Reward*: ${meta.lottery.role}`;
 }
 
-// 🔁 Animated Indicator Frames
-const animFrames = [
-  '🟢',
-  '🟢●',
-  '🟢●●',
-  '🟢●●●'
-];
-let animIndex = 0;
-
-function getNextAnim() {
-  const frame = animFrames[animIndex];
-  animIndex = (animIndex + 1) % animFrames.length;
-  return frame;
-}
-
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -378,10 +378,10 @@ async function showMainMenu(id, lbPage = 0) {
   // ================= DROP-OFF STATUS =================
 if (!meta.dropoff) meta.dropoff = false;
   
-  const anim = getNextAnim();
-const storeText = meta.storeOpen
-  ? `▏${anim} *STORE OPEN*`
-  : '▏😙❌️ *STORE CLOSED*';
+  const anim = getNextStoreAnim();
+const storeStatus = meta.storeOpen
+  ? ` *${anim} STORE OPEN*`
+  : '❌️ *STORE CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
@@ -2529,22 +2529,19 @@ Press ✅ Confirm Order`;
   s.step = 'confirm';
 });
 
-// ================= MENU AUTO-REFRESH (ANIMATION) =================
-
+// ================= MENU AUTO-ANIMATION =================
 setInterval(() => {
   for (const id in sessions) {
     const s = sessions[id];
 
-    // Only update users who currently have the menu open
     if (!s || !s.mainMsgId) continue;
+    // If user is typing something (token input or order input), skip
+    if (s.awaitingToken || s.awaitingInput || s.step === 'amount') continue;
 
-    // Don't animate while user is entering token or input
-    if (s.awaitingToken || s.awaitingInput) continue;
-
-    // Re-render main menu (updates animation frame)
+    // Re-show main menu → this will update store indicator
     showMainMenu(Number(id));
   }
-}, 7000); // 7s = safe for Telegram rate limits
+}, 7000); // change animation frame every 7s
 
 // ================= EXPORT/IMPORT DB =================
 bot.onText(/\/exportdb/, msg => {
