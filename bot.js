@@ -304,6 +304,10 @@ async function showMainMenu(id, lbPage = 0) {
 
   const u = users[id];
   const highestRole = getHighestRole(u);
+  const level = getLevelFromXP(u.xp);
+  const nextXP = getXPForNextLevel(level);
+  const rank = getRankByLevel(level);
+  const bar = xpBar(u.xp, nextXP);
 
   const dropoffStatus = meta.dropoff
   ? '🚗 *DROP OFF:* 🟢 ON'
@@ -355,6 +359,7 @@ await sendOrEdit(
 ▏👑 *Highest Role*: *${highestRole}*
 ▏🎚 Level: *${u.level}*
 ▏${xpBar(u.xp, u.level)}
+▏👑 Rank: ${rank}
 ———————————————————
 
 ———————————————————
@@ -1318,6 +1323,56 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
     bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
 });
+
+// ================= LEVEL RANK SYSTEM =================
+
+// Rank titles by level
+const levelRanks = [
+  { min: 0,    name: '🥉 Bronze' },
+  { min: 5,    name: '🥉 Bronze I' },
+  { min: 10,   name: '🥉 Bronze II' },
+  { min: 25,   name: '🥈 Silver' },
+  { min: 30,   name: '🥈 Silver I' },
+  { min: 40,  name: '🥈 Silver II' },
+  { min: 45,  name: '🥈 Silver III' },
+  { min: 50,  name: '🥇 Gold' },
+  { min: 70, name: '🥇 Gold I' },
+  { min: 85, name: '🥇 Gold II' },
+  { min: 100, name: '🥇 Gold III' },
+  { min: 150, name: '💎 Platnium' },
+  { min: 200, name: '💎 Platnium I' },
+  { min: 250, name: '💎 Platnium II' },
+  { min: 300, name: '💎 Platnium III' },
+  { min: 400, name: '🌌 Galaxy' },
+  { min: 500, name: '🌌 Galaxy I' },
+  { min: 400, name: '🌌 Galaxy II' },
+  { min: 400, name: '🌌 Galaxy III' },
+];
+
+// XP → Level
+function getLevelFromXP(xp) {
+  return Math.floor(Math.sqrt(xp / 5));
+}
+
+// XP needed for next level
+function getXPForNextLevel(level) {
+  return Math.pow(level + 1, 2) * 5;
+}
+
+// Level → Rank name
+function getRankByLevel(level) {
+  let rank = levelRanks[0].name;
+  for (const r of levelRanks) {
+    if (level >= r.min) rank = r.name;
+  }
+  return rank;
+}
+
+// XP progress bar
+function xpBar(current, max, size = 10) {
+  const filled = Math.round((current / max) * size);
+  return '🟩'.repeat(filled) + '⬜'.repeat(size - filled);
+}
 
 // ================= /shop COMMAND =================
 const SHOP_PAGE_SIZE = 5;
