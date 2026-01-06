@@ -237,9 +237,24 @@ function getHighestRole(user) {
 
 function getLotteryMenuText() {
   if (!meta.lottery || !meta.lottery.active || !meta.lottery.role) {
-    return '🎟 /lottery Reward: None';
+    return '🎟 /lottery *Reward*: None';
   }
-  return `🎟 /lottery Reward: ${meta.lottery.role}`;
+  return `🎟 /lottery *Reward*: ${meta.lottery.role}`;
+}
+
+// 🔁 Animated Indicator Frames
+const animFrames = [
+  '🟢',
+  '🟢●',
+  '🟢●●',
+  '🟢●●●'
+];
+let animIndex = 0;
+
+function getNextAnim() {
+  const frame = animFrames[animIndex];
+  animIndex = (animIndex + 1) % animFrames.length;
+  return frame;
 }
 
 // ================= SESSIONS =================
@@ -329,8 +344,8 @@ async function showMainMenu(id, lbPage = 0) {
   const highestRole = getHighestRole(u);
 
   const dropoffStatus = meta.dropoff
-  ? '🚗 *DROP OFF:* 🟢 ON'
-  : '🚗 *DROP OFF:* 🔴 OFF';
+  ? '🚘 *DROP-OFF:* 🟢 ON'
+  : '🚘 *DROP-OFF:* 🔴 OFF';
   
   const orders = u.orders.length
   ? u.orders.map(o => {
@@ -363,7 +378,10 @@ async function showMainMenu(id, lbPage = 0) {
   // ================= DROP-OFF STATUS =================
 if (!meta.dropoff) meta.dropoff = false;
   
-  const storeStatus = meta.storeOpen ? '😙💨 *STORE OPEN*' : '😙❌️ *STORE CLOSED*';
+  const anim = getNextAnim();
+const storeText = meta.storeOpen
+  ? `▏${anim} *STORE OPEN*`
+  : '▏😙❌️ *STORE CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
@@ -378,7 +396,7 @@ await sendOrEdit(
 ▏👑 *Highest Role*: *${highestRole}*
 ▏🎚 *Level*: *${u.level}*
 ▏${xpBar(u.xp, u.level)}
-▏💫 *Rank*: ${getRankByLevel(u.level)}
+▏*Rank*: ${getRankByLevel(u.level)}
 ———————————————————
 
 ———————————————————
@@ -397,7 +415,7 @@ ${orders}
 ———————————————————
 ▏×  ▏🛍 *PRODUCTS* 
 ———————————————————
-▏${storeStatus}
+▏${storeText}
 ▏${dropoffStatus}
 ———————————————————
 ▏🥤 *Sprite Popperz* - *Info* /spritepop
@@ -2510,6 +2528,23 @@ Press ✅ Confirm Order`;
   // Lock input so user can’t send another amount accidentally
   s.step = 'confirm';
 });
+
+// ================= MENU AUTO-REFRESH (ANIMATION) =================
+
+setInterval(() => {
+  for (const id in sessions) {
+    const s = sessions[id];
+
+    // Only update users who currently have the menu open
+    if (!s || !s.mainMsgId) continue;
+
+    // Don't animate while user is entering token or input
+    if (s.awaitingToken || s.awaitingInput) continue;
+
+    // Re-render main menu (updates animation frame)
+    showMainMenu(Number(id));
+  }
+}, 7000); // 7s = safe for Telegram rate limits
 
 // ================= EXPORT/IMPORT DB =================
 bot.onText(/\/exportdb/, msg => {
