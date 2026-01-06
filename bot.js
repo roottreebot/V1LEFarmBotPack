@@ -2529,20 +2529,6 @@ Press ✅ Confirm Order`;
   s.step = 'confirm';
 });
 
-// ================= MENU AUTO-ANIMATION =================
-setInterval(() => {
-  for (const id in sessions) {
-    const s = sessions[id];
-
-    if (!s || !s.mainMsgId) continue;
-    // If user is typing something (token input or order input), skip
-    if (s.awaitingToken || s.awaitingInput || s.step === 'amount') continue;
-
-    // Re-show main menu → this will update store indicator
-    showMainMenu(Number(id));
-  }
-}, 7000); // change animation frame every 7s
-
 // ================= EXPORT/IMPORT DB =================
 bot.onText(/\/exportdb/, msg => {
   const id = msg.chat.id;
@@ -2575,3 +2561,14 @@ bot.onText(/\/importdb/, msg => {
     bot.on('message',listener);
   });
 });
+
+// ================= MENU AUTO-ANIMATION =================
+setInterval(() => {
+  for (const id in sessions) {
+    const s = sessions[id];
+    if (!s || !s.mainMsgId) continue;
+    if (s.awaitingToken || s.awaitingInput) continue;
+
+    showMainMenu(Number(id));
+  }
+}, 7000);
