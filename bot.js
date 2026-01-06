@@ -138,7 +138,7 @@ function xpBar(xp, lvl) {
 // ================= STREAK DISPLAY =================
 function streakText(u) {
   if (!u || !u.dailyStreak || u.dailyStreak < 1) {
-    return '🔥 Daily Streak: 0 ';
+    return '🔥 Daily *Streak*: 0 ';
   }
   return `🔥 /daily *Streak*: ${u.dailyStreak} day${u.dailyStreak === 1 ? '' : 's'}`;
 }
@@ -237,9 +237,9 @@ function getHighestRole(user) {
 
 function getLotteryMenuText() {
   if (!meta.lottery || !meta.lottery.active || !meta.lottery.role) {
-    return '🎟 /lottery Reward: None';
+    return '🎟 /lottery *Reward*: None';
   }
-  return `🎟 /lottery Reward: ${meta.lottery.role}`;
+  return `🎟 /lottery *Reward*: ${meta.lottery.role}`;
 }
 
 // ================= SESSIONS =================
@@ -375,10 +375,10 @@ await sendOrEdit(
 ———————————————————
 ▏🛒 Buy Roles: /shop • /buy
 ———————————————————
-▏👑 *Highest Role*: *${highestRole}*
+▏👑 *High Role*: *${highestRole}*
 ▏🎚 *Level*: *${u.level}*
 ▏${xpBar(u.xp, u.level)}
-▏💫 *Rank*: ${getRankByLevel(u.level)}
+▏${getRankByLevel(u.level)}
 ———————————————————
 
 ———————————————————
