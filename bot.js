@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.3 • build 1 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.3 • build 3 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -297,7 +297,7 @@ function getLeaderboard(page = 0) {
   const slice = list.slice(page * lbSize, page * lbSize + lbSize);
 
   let text = `———————————————————\n`;
-text += `▏×  ▏*🏆 WEEKLY LEADERBOARD*\n`;
+text += `▏*×*  ▏*🏆 WEEKLY LEADERBOARD*\n`;
 text += `———————————————————\n`; 
 text += `▏🔒 Want To Go Private? 
 ▏/wlprivate • /wlon\n`;
@@ -310,7 +310,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.3 • build 1\n`;
+text += `v2.0.3 • build 3\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -392,7 +392,7 @@ await sendOrEdit(
   id,
 `
 ———————————————————
-▏×  ▏📊 *STATS* ● /userprofile
+▏*×*  ▏📊 *STATS* ● /userprofile
 ———————————————————
 ▏🛒 Buy Roles: /shop • /buy
 ———————————————————
@@ -403,20 +403,20 @@ await sendOrEdit(
 ———————————————————
 
 ———————————————————
-▏×  ▏📦 *YOUR ORDERS* (*LAST 5*)
+▏*×*  ▏📦 *YOUR ORDERS* (*LAST 5*)
 ———————————————————
 ${orders}
 ———————————————————
 
 ———————————————————
-▏×  ▏🌟 *EXTRA*
+▏*×*  ▏🌟 *EXTRA*
 ———————————————————
 ▏${streakText(u)}
 ▏${lotteryLine}
 ———————————————————
 
 ———————————————————
-▏×  ▏🛍 *PRODUCTS* 
+▏*×*  ▏🛍 *PRODUCTS* 
 ———————————————————
 ▏${storeStatus}
 ▏${dropoffStatus}
@@ -1435,7 +1435,7 @@ A sharp burst of citrus-style freshness wrapped in sticky, crystal-coated buds. 
 
 🌿 *What to expect
 • Dense, frosty nugs
-• Sweet & refreshing taste
+• Sweet / Earthy & refreshing taste
 • Smooth, enjoyable smoke
 • Perfect for chilling or getting creative*
 
@@ -1471,9 +1471,9 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
 • Thick, sticky green nugs
 • Earthy, bold flavor
 • Strong, satisfying smoke
-• Perfect for late nights & deep chills*
+• Perfect for late nights*
 
-💨 *Old-school feel. New-level quality.*
+💨 *Amazing feel. Decent quality.*
 
 ———————————————————
 `;
@@ -1759,7 +1759,7 @@ bot.onText(/\/adminhelp/, async (msg) => {
 
 🪙 *TOKEN GENERATOR*
 ———————————————————
-/createtoken — Create Token For User Access
+/createtoken >User Amount< >Time e.g 1h,5d< — Create Token For User Access
 /tokenlist — View Active Tokens
 /deletetoken — Delete Current Active Tokens
 
