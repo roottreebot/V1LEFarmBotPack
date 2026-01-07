@@ -982,17 +982,21 @@ bot.onText(/\/mytoken/, (msg) => {
 });
 
 // ================= /DELETETOKEN =================
-bot.onText(/\/deletetoken (.+)/, async (msg, match) => {
+bot.onText(/\/deletetoken (.+)/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
   const token = match[1].trim().toUpperCase();
-  if (!meta.tokens || !meta.tokens.includes(token)) {
-    return bot.sendMessage(id, '❌ Token not found.');
+
+  // Check if it exists in the tokens object
+  if (!meta.tokens[token]) {
+    return bot.sendMessage(id, `❌ Token "${token}" not found.`);
   }
 
-  meta.tokens = meta.tokens.filter(t => t !== token);
+  // Delete it
+  delete meta.tokens[token];
   saveAll();
+
   return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
 });
 
@@ -2473,24 +2477,31 @@ bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
   }, 8000);
 });
 
-// ================= /TOKENLIST =================
-bot.onText(/\/tokenlist/, async (msg) => {
+// ================= /tokenlist =================
+bot.onText(/\/tokenlist/, (msg) => {
   const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
-  if (!ADMIN_IDS.includes(id)) {
-    return bot.sendMessage(id, '❌ You are not allowed to use this command.');
+  const allTokens = Object.entries(meta.tokens);
+
+  if (allTokens.length === 0) {
+    return bot.sendMessage(id, "📦 No active tokens right now.");
   }
 
-  if (!meta.tokens || meta.tokens.length === 0) {
-    return bot.sendMessage(id, 'ℹ️ There are no unused tokens.');
-  }
+  let text = "*Active Tokens:*\n\n";
 
-  const tokenList = meta.tokens.join('\n');
-  return bot.sendMessage(
-    id,
-    `📝 *Unused Tokens:*\n\n${tokenList}`,
-    { parse_mode: 'Markdown' }
-  );
+  allTokens.forEach(([token, data]) => {
+    const used = data.maxUses - data.usesLeft;
+    const expiresText = data.expiresAt
+      ? new Date(data.expiresAt).toLocaleString()
+      : "Never";
+
+    text += `• \`${token}\`\n`;
+    text += `   Uses: ${used}/${data.maxUses}\n`;
+    text += `   Expires: ${expiresText}\n\n`;
+  });
+
+  bot.sendMessage(id, text, { parse_mode: "Markdown" });
 });
 
 // ================= /spin =================
