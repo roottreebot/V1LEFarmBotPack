@@ -982,18 +982,22 @@ bot.onText(/\/mytoken/, (msg) => {
 });
 
 // ================= /DELETETOKEN =================
-bot.onText(/\/deletetoken (.+)/, async (msg, match) => {
+bot.onText(/\/deletetoken (\w+)/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
-  const token = match[1].trim().toUpperCase();
-  if (!meta.tokens || !meta.tokens.includes(token)) {
-    return bot.sendMessage(id, '❌ Token not found.');
+  const token = match[1].toUpperCase();
+
+  if (!meta.tokens[token]) {
+    return bot.sendMessage(id, "❌ Token not found.");
   }
 
-  meta.tokens = meta.tokens.filter(t => t !== token);
+  delete meta.tokens[token];
   saveAll();
-  return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
+
+  bot.sendMessage(id, `🗑 Token *${token}* deleted.`, {
+    parse_mode: "Markdown"
+  });
 });
 
 // ================= /clearpending =================
@@ -2474,23 +2478,29 @@ bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
 });
 
 // ================= /TOKENLIST =================
-bot.onText(/\/tokenlist/, async (msg) => {
+bot.onText(/\/tokenlist/, (msg) => {
   const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
-  if (!ADMIN_IDS.includes(id)) {
-    return bot.sendMessage(id, '❌ You are not allowed to use this command.');
+  const tokens = Object.entries(meta.tokens || {});
+
+  if (!tokens.length) {
+    return bot.sendMessage(id, "📭 No active tokens.");
   }
 
-  if (!meta.tokens || meta.tokens.length === 0) {
-    return bot.sendMessage(id, 'ℹ️ There are no unused tokens.');
+  let text = "🎟 *ACTIVE TOKENS*\n\n";
+
+  for (const [token, t] of tokens) {
+    const used = t.maxUses - t.usesLeft;
+
+    text +=
+      `🔑 \`${token}\`\n` +
+      `👥 Used: ${used}/${t.maxUses}\n` +
+      `⏳ Expires: ${t.expiresAt ? new Date(t.expiresAt).toLocaleString() : "Never"}\n` +
+      `👤 Creator: ${t.createdBy}\n\n`;
   }
 
-  const tokenList = meta.tokens.join('\n');
-  return bot.sendMessage(
-    id,
-    `📝 *Unused Tokens:*\n\n${tokenList}`,
-    { parse_mode: 'Markdown' }
-  );
+  bot.sendMessage(id, text, { parse_mode: "Markdown" });
 });
 
 // ================= /spin =================
