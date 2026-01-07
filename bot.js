@@ -436,64 +436,118 @@ ${lb.text}`,
   );
 }
 
-// ================= /START =================
+// ================= INITIALIZE USER =================
+function ensureUser(id) {
+  if (!users[id]) {
+    users[id] = {
+      username: null,
+      verified: false,
+      level: 1,
+      xp: 0,
+      orders: [],
+      roles: [],
+    };
+    sessions[id] = {};
+    saveAll();
+  }
+}
+
+// ================= /START + TOKEN =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
   ensureUser(id);
   const u = users[id];
 
+  // If user isn't verified, mark session as waiting for token
   if (!u.verified) {
-    sessions[id] = sessions[id] || {};
     sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 Enter your invite token:");
+    return bot.sendMessage(id, '🔐 Please enter your invite token to continue.');
   }
 
+  // User verified → show main menu
   return showMainMenu(id);
 });
 
-// ================= TOKEN INPUT =================
-bot.on("message", async (msg) => {
+// ================= TOKEN INPUT HANDLER =================
+bot.on('message', async (msg) => {
   const id = msg.chat.id;
   const text = msg.text;
 
-  if (!text || text.startsWith("/")) return;
+  // Ignore commands
+  if (!text || text.startsWith('/')) return;
 
   ensureUser(id);
   const u = users[id];
 
+  // Only process if waiting for token
   if (!sessions[id]?.awaitingToken || u.verified) return;
 
   const token = text.trim().toUpperCase();
   const data = meta.tokens[token];
 
   if (!data) {
-    return bot.sendMessage(id, "❌ Invalid token.");
+    return bot.sendMessage(id, "❌ Invalid token. Try again.");
   }
 
+  // Check expiry
   if (data.expiresAt && Date.now() > data.expiresAt) {
     delete meta.tokens[token];
     saveAll();
     return bot.sendMessage(id, "❌ Token expired.");
   }
 
+  // Check uses left
   if (data.usesLeft <= 0) {
     delete meta.tokens[token];
     saveAll();
     return bot.sendMessage(id, "❌ Token already used.");
   }
 
-  // ACCEPT TOKEN
+  // ✅ Accept token
   data.usesLeft--;
-  data.usedBy.push(id);
+  data.usedBy = data.usedBy || [];
+  data.usedBy.push({ userId: id, usedAt: Date.now() });
 
-  if (data.usesLeft === 0) delete meta.tokens[token];
+  if (data.usesLeft <= 0) delete meta.tokens[token];
 
   u.verified = true;
   sessions[id].awaitingToken = false;
 
   saveAll();
-  await bot.sendMessage(id, "✅ Access granted.");
+
+  await bot.sendMessage(id, "✅ Token accepted! Welcome!");
   return showMainMenu(id);
+});
+
+// ================= ADMIN COMMAND /CREATETOKEN =================
+bot.onText(/\/createtoken (\d+)(?: (\d+[dhm]))?/, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const uses = parseInt(match[1]);
+  const expireStr = match[2]; // optional e.g., "7d"
+
+  let expiresAt = null;
+  if (expireStr) {
+    const amount = parseInt(expireStr);
+    if (expireStr.endsWith('d')) expiresAt = Date.now() + amount * 24*60*60*1000;
+    if (expireStr.endsWith('h')) expiresAt = Date.now() + amount * 60*60*1000;
+    if (expireStr.endsWith('m')) expiresAt = Date.now() + amount * 60*1000;
+  }
+
+  // Generate random 6-char token
+  const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  meta.tokens[token] = {
+    usesLeft: uses,
+    maxUses: uses,
+    expiresAt,
+    usedBy: []
+  };
+
+  saveAll();
+
+  bot.sendMessage(id, `🎟 Created token: \`${token}\`\nUses: ${uses}${expiresAt ? `\nExpires: ${new Date(expiresAt).toLocaleString()}` : ""}`, { parse_mode: "Markdown" });
 });
 
 // ================= CALLBACKS =================
@@ -898,67 +952,6 @@ bot.on('callback_query', async (q) => {
       message_id: q.message.message_id
     });
   }
-});
-
-// ================= TOKEN INPUT =================
-bot.on('message', async (msg) => {
-  const id = msg.chat.id;
-  const text = msg.text;
-
-  if (!text || text.startsWith('/')) return;
-
-  ensureUser(id);
-  const u = users[id];
-
-  if (u.verified) return;
-
-  const token = text.trim().toUpperCase();
-
-  if (!meta.inviteTokens.includes(token)) {
-    bot.deleteMessage(id, msg.message_id).catch(() => {});
-    return bot.sendMessage(id, '❌ Invalid invite token.');
-  }
-
-  // Consume token
-  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
-  u.verified = true;
-  saveAll();
-
-  bot.deleteMessage(id, msg.message_id).catch(() => {});
-  await bot.sendMessage(id, '✅ Access granted.');
-
-  showMainMenu(id);
-});
-
-// ================= /CREATETOKEN =================
-bot.onText(/\/createtoken (\d+)(?: (\S+))?/, (msg, match) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
-
-  const uses = parseInt(match[1]);
-  const expiryInput = match[2];
-  const expiresAt = parseExpiry(expiryInput);
-
-  const token = Math.random().toString(36).slice(2, 8).toUpperCase();
-
-  meta.tokens[token] = {
-    usesLeft: uses,
-    maxUses: uses,
-    expiresAt,
-    createdBy: id,
-    usedBy: []
-  };
-
-  saveAll();
-
-  bot.sendMessage(
-    id,
-    `🎟 *TOKEN CREATED*\n\n` +
-    `🔑 Token: \`${token}\`\n` +
-    `👥 Uses: ${uses}\n` +
-    `⏳ Expires: ${expiresAt ? new Date(expiresAt).toLocaleString() : 'Never'}`,
-    { parse_mode: 'Markdown' }
-  );
 });
 
 // ================= /MYTOKEN =================
