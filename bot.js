@@ -117,6 +117,7 @@ function ensureUser(id, username) {
   if (username) users[id].username = username;
 }
 
+// ================= TOKEN INIT =================
 if (!meta.tokens) meta.tokens = {};
 
 // ================= XP =================
@@ -429,75 +430,65 @@ ${lb.text}`,
   );
 }
 
-// ================= /START + TOKEN VERIFICATION =================
+// ================= /START =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
   ensureUser(id);
   const u = users[id];
 
-  // If user isn't verified, just mark session to wait for token
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
-    sessions[id].awaitingToken = true; // mark that we're waiting for token
-    return; // do not send any message
+    sessions[id].awaitingToken = true;
+    return bot.sendMessage(id, "🔑 Enter your invite token:");
   }
 
-  // Otherwise show main menu
-  showMainMenu(id);
+  return showMainMenu(id);
 });
 
-// ================= TOKEN INPUT HANDLER =================
-bot.on('message', async (msg) => {
+// ================= TOKEN INPUT =================
+bot.on("message", async (msg) => {
   const id = msg.chat.id;
   const text = msg.text;
 
-  if (!text) return;
+  if (!text || text.startsWith("/")) return;
 
   ensureUser(id);
   const u = users[id];
 
-  // If user is awaiting token
-  if (!u.verified && sessions[id]?.awaitingToken) {
-    const tokenInput = text.trim().toUpperCase();
+  if (!sessions[id]?.awaitingToken || u.verified) return;
 
-    if (!meta.tokens || !meta.tokens.includes(tokenInput)) {
-      return bot.sendMessage(id, '❌ Invalid token. Please enter a valid invite token.');
-    }
+  const token = text.trim().toUpperCase();
+  const data = meta.tokens[token];
+
+  if (!data) {
+    return bot.sendMessage(id, "❌ Invalid token.");
+  }
 
   if (data.expiresAt && Date.now() > data.expiresAt) {
-  delete meta.tokens[token];
-  saveAll();
-  return bot.sendMessage(id, "❌ Token expired.");
-}
-
-if (data.usesLeft <= 0) {
-  delete meta.tokens[token];
-  saveAll();
-  return bot.sendMessage(id, "❌ Token fully used.");
-}
-
-data.usesLeft--;
-data.usedBy.push(id);
-
-if (data.usesLeft === 0) delete meta.tokens[token];
-    
-    // Remove token so it can't be reused
-    meta.tokens = meta.tokens.filter(t => t !== tokenInput);
-    u.verified = true;
+    delete meta.tokens[token];
     saveAll();
-
-    sessions[id].awaitingToken = false; // done waiting
-
-    await bot.sendMessage(id, '✅ Token accepted! Welcome!');
-    return showMainMenu(id);
+    return bot.sendMessage(id, "❌ Token expired.");
   }
 
-  // If user is NOT verified, block any other message
-  if (!u.verified) {
-    return bot.sendMessage(id, '🔐 Please enter your invite token first using /start.');
+  if (data.usesLeft <= 0) {
+    delete meta.tokens[token];
+    saveAll();
+    return bot.sendMessage(id, "❌ Token already used.");
   }
 
-  // ===== Other bot message handlers can go here =====
+  // ✅ ACCEPT TOKEN
+  data.usesLeft--;
+  data.usedBy.push(id);
+
+  if (data.usesLeft === 0) delete meta.tokens[token];
+
+  u.verified = true;
+  sessions[id].awaitingToken = false;
+
+  saveAll();
+
+  await bot.sendMessage(id, "✅ Access granted.");
+  return showMainMenu(id);
 });
 
 // ================= CALLBACKS =================
