@@ -16,12 +16,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ===== FORCE TOKEN OBJECT FORMAT =====
-if (!meta.tokens || Array.isArray(meta.tokens)) {
-  meta.tokens = {};
-  saveAll();
-}
-
 // ================= RANK ROLES =================
 const levelRanks = [
   { min: 0,    name: '🥉 Bronze' },
@@ -123,7 +117,6 @@ function ensureUser(id, username) {
   if (username) users[id].username = username;
 }
 
-// ================= TOKEN INIT =================
 if (!meta.tokens) meta.tokens = {};
 
 // ================= XP =================
@@ -436,36 +429,21 @@ ${lb.text}`,
   );
 }
 
-// ================= INITIALIZE USER =================
-function ensureUser(id) {
-  if (!users[id]) {
-    users[id] = {
-      username: null,
-      verified: false,
-      level: 1,
-      xp: 0,
-      orders: [],
-      roles: [],
-    };
-    sessions[id] = {};
-    saveAll();
-  }
-}
-
-// ================= /START + TOKEN =================
+// ================= /START + TOKEN VERIFICATION =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
   ensureUser(id);
   const u = users[id];
 
-  // If user isn't verified, mark session as waiting for token
+  // If user isn't verified, just mark session to wait for token
   if (!u.verified) {
-    sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, '🔐 Please enter your invite token to continue.');
+    sessions[id] = sessions[id] || {};
+    sessions[id].awaitingToken = true; // mark that we're waiting for token
+    return; // do not send any message
   }
 
-  // User verified → show main menu
-  return showMainMenu(id);
+  // Otherwise show main menu
+  showMainMenu(id);
 });
 
 // ================= TOKEN INPUT HANDLER =================
@@ -473,81 +451,53 @@ bot.on('message', async (msg) => {
   const id = msg.chat.id;
   const text = msg.text;
 
-  // Ignore commands
-  if (!text || text.startsWith('/')) return;
+  if (!text) return;
 
   ensureUser(id);
   const u = users[id];
 
-  // Only process if waiting for token
-  if (!sessions[id]?.awaitingToken || u.verified) return;
+  // If user is awaiting token
+  if (!u.verified && sessions[id]?.awaitingToken) {
+    const tokenInput = text.trim().toUpperCase();
 
-  const token = text.trim().toUpperCase();
-  const data = meta.tokens[token];
+    if (!meta.tokens || !meta.tokens.includes(tokenInput)) {
+      return bot.sendMessage(id, '❌ Invalid token. Please enter a valid invite token.');
+    }
 
-  if (!data) {
-    return bot.sendMessage(id, "❌ Invalid token. Try again.");
-  }
-
-  // Check expiry
   if (data.expiresAt && Date.now() > data.expiresAt) {
-    delete meta.tokens[token];
-    saveAll();
-    return bot.sendMessage(id, "❌ Token expired.");
-  }
-
-  // Check uses left
-  if (data.usesLeft <= 0) {
-    delete meta.tokens[token];
-    saveAll();
-    return bot.sendMessage(id, "❌ Token already used.");
-  }
-
-  // ✅ Accept token
-  data.usesLeft--;
-  data.usedBy = data.usedBy || [];
-  data.usedBy.push({ userId: id, usedAt: Date.now() });
-
-  if (data.usesLeft <= 0) delete meta.tokens[token];
-
-  u.verified = true;
-  sessions[id].awaitingToken = false;
-
+  delete meta.tokens[token];
   saveAll();
+  return bot.sendMessage(id, "❌ Token expired.");
+}
 
-  await bot.sendMessage(id, "✅ Token accepted! Welcome!");
-  return showMainMenu(id);
-});
+if (data.usesLeft <= 0) {
+  delete meta.tokens[token];
+  saveAll();
+  return bot.sendMessage(id, "❌ Token fully used.");
+}
 
-// ================= ADMIN COMMAND /CREATETOKEN =================
-bot.onText(/\/createtoken (\d+)(?: (\d+[dhm]))?/, (msg, match) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
+data.usesLeft--;
+data.usedBy.push(id);
 
-  const uses = parseInt(match[1]);
-  const expireStr = match[2]; // optional e.g., "7d"
+if (data.usesLeft === 0) delete meta.tokens[token];
+    
+    // Remove token so it can't be reused
+    meta.tokens = meta.tokens.filter(t => t !== tokenInput);
+    u.verified = true;
+    saveAll();
 
-  let expiresAt = null;
-  if (expireStr) {
-    const amount = parseInt(expireStr);
-    if (expireStr.endsWith('d')) expiresAt = Date.now() + amount * 24*60*60*1000;
-    if (expireStr.endsWith('h')) expiresAt = Date.now() + amount * 60*60*1000;
-    if (expireStr.endsWith('m')) expiresAt = Date.now() + amount * 60*1000;
+    sessions[id].awaitingToken = false; // done waiting
+
+    await bot.sendMessage(id, '✅ Token accepted! Welcome!');
+    return showMainMenu(id);
   }
 
-  // Generate random 6-char token
-  const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+  // If user is NOT verified, block any other message
+  if (!u.verified) {
+    return bot.sendMessage(id, '🔐 Please enter your invite token first using /start.');
+  }
 
-  meta.tokens[token] = {
-    usesLeft: uses,
-    maxUses: uses,
-    expiresAt,
-    usedBy: []
-  };
-
-  saveAll();
-
-  bot.sendMessage(id, `🎟 Created token: \`${token}\`\nUses: ${uses}${expiresAt ? `\nExpires: ${new Date(expiresAt).toLocaleString()}` : ""}`, { parse_mode: "Markdown" });
+  // ===== Other bot message handlers can go here =====
 });
 
 // ================= CALLBACKS =================
@@ -954,6 +904,67 @@ bot.on('callback_query', async (q) => {
   }
 });
 
+// ================= TOKEN INPUT =================
+bot.on('message', async (msg) => {
+  const id = msg.chat.id;
+  const text = msg.text;
+
+  if (!text || text.startsWith('/')) return;
+
+  ensureUser(id);
+  const u = users[id];
+
+  if (u.verified) return;
+
+  const token = text.trim().toUpperCase();
+
+  if (!meta.inviteTokens.includes(token)) {
+    bot.deleteMessage(id, msg.message_id).catch(() => {});
+    return bot.sendMessage(id, '❌ Invalid invite token.');
+  }
+
+  // Consume token
+  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
+  u.verified = true;
+  saveAll();
+
+  bot.deleteMessage(id, msg.message_id).catch(() => {});
+  await bot.sendMessage(id, '✅ Access granted.');
+
+  showMainMenu(id);
+});
+
+// ================= /CREATETOKEN =================
+bot.onText(/\/createtoken (\d+)(?: (\S+))?/, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const uses = parseInt(match[1]);
+  const expiryInput = match[2];
+  const expiresAt = parseExpiry(expiryInput);
+
+  const token = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  meta.tokens[token] = {
+    usesLeft: uses,
+    maxUses: uses,
+    expiresAt,
+    createdBy: id,
+    usedBy: []
+  };
+
+  saveAll();
+
+  bot.sendMessage(
+    id,
+    `🎟 *TOKEN CREATED*\n\n` +
+    `🔑 Token: \`${token}\`\n` +
+    `👥 Uses: ${uses}\n` +
+    `⏳ Expires: ${expiresAt ? new Date(expiresAt).toLocaleString() : 'Never'}`,
+    { parse_mode: 'Markdown' }
+  );
+});
+
 // ================= /MYTOKEN =================
 bot.onText(/\/mytoken/, (msg) => {
   const id = msg.chat.id;
@@ -980,22 +991,18 @@ bot.onText(/\/mytoken/, (msg) => {
 });
 
 // ================= /DELETETOKEN =================
-bot.onText(/\/deletetoken (\S+)/, (msg, match) => {
+bot.onText(/\/deletetoken (.+)/, async (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
-  const token = match[1].toUpperCase();
-
-  if (!meta.tokens[token]) {
-    return bot.sendMessage(id, "❌ Token not found.");
+  const token = match[1].trim().toUpperCase();
+  if (!meta.tokens || !meta.tokens.includes(token)) {
+    return bot.sendMessage(id, '❌ Token not found.');
   }
 
-  delete meta.tokens[token];
+  meta.tokens = meta.tokens.filter(t => t !== token);
   saveAll();
-
-  bot.sendMessage(id, `🗑 Token *${token}* deleted.`, {
-    parse_mode: "Markdown"
-  });
+  return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
 });
 
 // ================= /clearpending =================
@@ -2476,27 +2483,23 @@ bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
 });
 
 // ================= /TOKENLIST =================
-bot.onText(/\/tokenlist/, (msg) => {
+bot.onText(/\/tokenlist/, async (msg) => {
   const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
 
-  const entries = Object.entries(meta.tokens || {});
-  if (!entries.length) {
-    return bot.sendMessage(id, "📭 No active tokens.");
+  if (!ADMIN_IDS.includes(id)) {
+    return bot.sendMessage(id, '❌ You are not allowed to use this command.');
   }
 
-  let text = "🎟 *ACTIVE TOKENS*\n\n";
-
-  for (const [token, t] of entries) {
-    const used = t.maxUses - t.usesLeft;
-
-    text +=
-      `🔑 \`${token}\`\n` +
-      `👥 Used: ${used}/${t.maxUses}\n` +
-      `⏳ Expires: ${t.expiresAt ? new Date(t.expiresAt).toLocaleString() : "Never"}\n\n`;
+  if (!meta.tokens || meta.tokens.length === 0) {
+    return bot.sendMessage(id, 'ℹ️ There are no unused tokens.');
   }
 
-  bot.sendMessage(id, text, { parse_mode: "Markdown" });
+  const tokenList = meta.tokens.join('\n');
+  return bot.sendMessage(
+    id,
+    `📝 *Unused Tokens:*\n\n${tokenList}`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // ================= /spin =================
