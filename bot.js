@@ -16,29 +16,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ===== INIT TOKEN + ROLE STRUCTURES =====
-if (!meta.tokens) meta.tokens = {}; 
-/*
-meta.tokens = {
-  ABC123: {
-    usesLeft: 1,
-    expiresAt: null,
-    role: "VIP",
-    createdBy: 123456,
-    usedBy: []
-  }
-}
-*/
-
-if (!meta.rolePriority) {
-  meta.rolePriority = {
-    "VIP": 100,
-    "Premium": 80,
-    "Member": 6,
-    "Guest": 5,
-  };
-}
-
 // ================= RANK ROLES =================
 const levelRanks = [
   { min: 0,    name: '🥉 Bronze' },
@@ -139,6 +116,8 @@ function ensureUser(id, username) {
   }
   if (username) users[id].username = username;
 }
+
+if (!meta.tokens) meta.tokens = {};
 
 // ================= XP =================
 function giveXP(id, xp) {
@@ -246,15 +225,7 @@ const ROLE_SHOP = {
 
 // ================= HELPER FUNCTIONS =================
 function getHighestRole(user) {
-  if (!user.roles || !user.roles.length) return "None";
-
-  return user.roles.reduce((highest, role) => {
-    return (meta.rolePriority[role] || 0) >
-      (meta.rolePriority[highest] || 0)
-      ? role
-      : highest;
-  }, user.roles[0]);
-}
+  if (!user.roles || user.roles.length === 0) return "_No role_";
 
   // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
@@ -273,6 +244,22 @@ function getLotteryMenuText() {
     return '🎟 /lottery *Reward*: None';
   }
   return `🎟 /lottery *Reward*: ${meta.lottery.role}`;
+}
+
+function parseExpiry(str) {
+  if (!str) return null;
+
+  const match = str.match(/^(\d+)([dhm])$/i);
+  if (!match) return null;
+
+  const num = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+
+  if (unit === 'd') return Date.now() + num * 24 * 60 * 60 * 1000;
+  if (unit === 'h') return Date.now() + num * 60 * 60 * 1000;
+  if (unit === 'm') return Date.now() + num * 60 * 1000;
+
+  return null;
 }
 
 // ================= SESSIONS =================
@@ -442,65 +429,75 @@ ${lb.text}`,
   );
 }
 
-// ================= /START =================
+// ================= /START + TOKEN VERIFICATION =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
   ensureUser(id);
   const u = users[id];
 
+  // If user isn't verified, just mark session to wait for token
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
-    sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 Enter your invite token:");
+    sessions[id].awaitingToken = true; // mark that we're waiting for token
+    return; // do not send any message
   }
 
-  return showMainMenu(id);
+  // Otherwise show main menu
+  showMainMenu(id);
 });
 
-// ================= TOKEN INPUT =================
-bot.on("message", async (msg) => {
+// ================= TOKEN INPUT HANDLER =================
+bot.on('message', async (msg) => {
   const id = msg.chat.id;
   const text = msg.text;
-  if (!text || text.startsWith("/")) return;
+
+  if (!text) return;
 
   ensureUser(id);
   const u = users[id];
 
-  if (!sessions[id]?.awaitingToken || u.verified) return;
+  // If user is awaiting token
+  if (!u.verified && sessions[id]?.awaitingToken) {
+    const tokenInput = text.trim().toUpperCase();
 
-  const token = text.trim().toUpperCase();
-  const data = meta.tokens[token];
-
-  if (!data) return bot.sendMessage(id, "❌ Invalid token.");
+    if (!meta.tokens || !meta.tokens.includes(tokenInput)) {
+      return bot.sendMessage(id, '❌ Invalid token. Please enter a valid invite token.');
+    }
 
   if (data.expiresAt && Date.now() > data.expiresAt) {
-    delete meta.tokens[token];
-    saveAll();
-    return bot.sendMessage(id, "❌ Token expired.");
-  }
-
-  if (data.usesLeft <= 0) {
-    delete meta.tokens[token];
-    saveAll();
-    return bot.sendMessage(id, "❌ Token already used.");
-  }
-
-  // ACCEPT TOKEN
-  data.usesLeft--;
-  data.usedBy.push(id);
-  if (data.usesLeft === 0) delete meta.tokens[token];
-
-  u.verified = true;
-  u.roles = u.roles || [];
-  if (data.role && !u.roles.includes(data.role)) {
-    u.roles.push(data.role);
-  }
-
-  sessions[id].awaitingToken = false;
+  delete meta.tokens[token];
   saveAll();
+  return bot.sendMessage(id, "❌ Token expired.");
+}
 
-  await bot.sendMessage(id, "✅ Access granted.");
-  return showMainMenu(id);
+if (data.usesLeft <= 0) {
+  delete meta.tokens[token];
+  saveAll();
+  return bot.sendMessage(id, "❌ Token fully used.");
+}
+
+data.usesLeft--;
+data.usedBy.push(id);
+
+if (data.usesLeft === 0) delete meta.tokens[token];
+    
+    // Remove token so it can't be reused
+    meta.tokens = meta.tokens.filter(t => t !== tokenInput);
+    u.verified = true;
+    saveAll();
+
+    sessions[id].awaitingToken = false; // done waiting
+
+    await bot.sendMessage(id, '✅ Token accepted! Welcome!');
+    return showMainMenu(id);
+  }
+
+  // If user is NOT verified, block any other message
+  if (!u.verified) {
+    return bot.sendMessage(id, '🔐 Please enter your invite token first using /start.');
+  }
+
+  // ===== Other bot message handlers can go here =====
 });
 
 // ================= CALLBACKS =================
@@ -907,37 +904,105 @@ bot.on('callback_query', async (q) => {
   }
 });
 
+// ================= TOKEN INPUT =================
+bot.on('message', async (msg) => {
+  const id = msg.chat.id;
+  const text = msg.text;
+
+  if (!text || text.startsWith('/')) return;
+
+  ensureUser(id);
+  const u = users[id];
+
+  if (u.verified) return;
+
+  const token = text.trim().toUpperCase();
+
+  if (!meta.inviteTokens.includes(token)) {
+    bot.deleteMessage(id, msg.message_id).catch(() => {});
+    return bot.sendMessage(id, '❌ Invalid invite token.');
+  }
+
+  // Consume token
+  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
+  u.verified = true;
+  saveAll();
+
+  bot.deleteMessage(id, msg.message_id).catch(() => {});
+  await bot.sendMessage(id, '✅ Access granted.');
+
+  showMainMenu(id);
+});
+
 // ================= /CREATETOKEN =================
-bot.onText(/\/createtoken (\d+) (\d+) (\w+)/, (msg, match) => {
+bot.onText(/\/createtoken (\d+)(?: (\S+))?/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
   const uses = parseInt(match[1]);
-  const hours = parseInt(match[2]);
-  const role = match[3];
+  const expiryInput = match[2];
+  const expiresAt = parseExpiry(expiryInput);
 
   const token = Math.random().toString(36).slice(2, 8).toUpperCase();
 
   meta.tokens[token] = {
     usesLeft: uses,
-    expiresAt: hours > 0 ? Date.now() + hours * 3600000 : null,
-    role,
+    maxUses: uses,
+    expiresAt,
     createdBy: id,
     usedBy: []
   };
 
   saveAll();
-  bot.sendMessage(id, `✅ Token created:\n${token}\nUses: ${uses}\nRole: ${role}`);
+
+  bot.sendMessage(
+    id,
+    `🎟 *TOKEN CREATED*\n\n` +
+    `🔑 Token: \`${token}\`\n` +
+    `👥 Uses: ${uses}\n` +
+    `⏳ Expires: ${expiresAt ? new Date(expiresAt).toLocaleString() : 'Never'}`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
-// ================= /DELETETOKEN =================
-bot.onText(/\/deletetoken (\w+)/, (msg, match) => {
+// ================= /MYTOKEN =================
+bot.onText(/\/mytoken/, (msg) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
-  delete meta.tokens[match[1].toUpperCase()];
+  const myTokens = Object.entries(meta.tokens)
+    .filter(([, t]) => t.createdBy === id);
+
+  if (!myTokens.length) {
+    return bot.sendMessage(id, "You haven’t created any tokens.");
+  }
+
+  let text = "🎟 *YOUR TOKENS*\n\n";
+
+  for (const [token, t] of myTokens) {
+    const used = t.maxUses - t.usesLeft;
+    text +=
+      `🔑 \`${token}\`\n` +
+      `👥 Used: ${used}/${t.maxUses}\n` +
+      `⏳ Expires: ${t.expiresAt ? new Date(t.expiresAt).toLocaleString() : 'Never'}\n\n`;
+  }
+
+  bot.sendMessage(id, text, { parse_mode: 'Markdown' });
+});
+
+// ================= /DELETETOKEN =================
+bot.onText(/\/deletetoken (.+)/, async (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const token = match[1].trim().toUpperCase();
+  if (!meta.tokens || !meta.tokens.includes(token)) {
+    return bot.sendMessage(id, '❌ Token not found.');
+  }
+
+  meta.tokens = meta.tokens.filter(t => t !== token);
   saveAll();
-  bot.sendMessage(id, "✅ Token deleted.");
+  return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
 });
 
 // ================= /clearpending =================
@@ -2418,19 +2483,23 @@ bot.onText(/\/givewxp (@\w+) (\d+)/, async (msg, match) => {
 });
 
 // ================= /TOKENLIST =================
-bot.onText(/\/tokenlist/, (msg) => {
+bot.onText(/\/tokenlist/, async (msg) => {
   const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
 
-  if (!Object.keys(meta.tokens).length)
-    return bot.sendMessage(id, "No active tokens.");
-
-  let text = "🎟 Active Tokens:\n\n";
-  for (const t in meta.tokens) {
-    const d = meta.tokens[t];
-    text += `• ${t} | Uses: ${d.usesLeft} | Role: ${d.role}\n`;
+  if (!ADMIN_IDS.includes(id)) {
+    return bot.sendMessage(id, '❌ You are not allowed to use this command.');
   }
-  bot.sendMessage(id, text);
+
+  if (!meta.tokens || meta.tokens.length === 0) {
+    return bot.sendMessage(id, 'ℹ️ There are no unused tokens.');
+  }
+
+  const tokenList = meta.tokens.join('\n');
+  return bot.sendMessage(
+    id,
+    `📝 *Unused Tokens:*\n\n${tokenList}`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 // ================= /spin =================
