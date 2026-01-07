@@ -16,6 +16,12 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// ===== FORCE TOKEN OBJECT FORMAT =====
+if (!meta.tokens || Array.isArray(meta.tokens)) {
+  meta.tokens = {};
+  saveAll();
+}
+
 // ================= RANK ROLES =================
 const levelRanks = [
   { min: 0,    name: '🥉 Bronze' },
@@ -476,7 +482,7 @@ bot.on("message", async (msg) => {
     return bot.sendMessage(id, "❌ Token already used.");
   }
 
-  // ✅ ACCEPT TOKEN
+  // ACCEPT TOKEN
   data.usesLeft--;
   data.usedBy.push(id);
 
@@ -486,7 +492,6 @@ bot.on("message", async (msg) => {
   sessions[id].awaitingToken = false;
 
   saveAll();
-
   await bot.sendMessage(id, "✅ Access granted.");
   return showMainMenu(id);
 });
@@ -982,7 +987,7 @@ bot.onText(/\/mytoken/, (msg) => {
 });
 
 // ================= /DELETETOKEN =================
-bot.onText(/\/deletetoken (\w+)/, (msg, match) => {
+bot.onText(/\/deletetoken (\S+)/, (msg, match) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
@@ -2482,22 +2487,20 @@ bot.onText(/\/tokenlist/, (msg) => {
   const id = msg.chat.id;
   if (!ADMIN_IDS.includes(id)) return;
 
-  const tokens = Object.entries(meta.tokens || {});
-
-  if (!tokens.length) {
+  const entries = Object.entries(meta.tokens || {});
+  if (!entries.length) {
     return bot.sendMessage(id, "📭 No active tokens.");
   }
 
   let text = "🎟 *ACTIVE TOKENS*\n\n";
 
-  for (const [token, t] of tokens) {
+  for (const [token, t] of entries) {
     const used = t.maxUses - t.usesLeft;
 
     text +=
       `🔑 \`${token}\`\n` +
       `👥 Used: ${used}/${t.maxUses}\n` +
-      `⏳ Expires: ${t.expiresAt ? new Date(t.expiresAt).toLocaleString() : "Never"}\n` +
-      `👤 Creator: ${t.createdBy}\n\n`;
+      `⏳ Expires: ${t.expiresAt ? new Date(t.expiresAt).toLocaleString() : "Never"}\n\n`;
   }
 
   bot.sendMessage(id, text, { parse_mode: "Markdown" });
