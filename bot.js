@@ -518,24 +518,9 @@ bot.on('callback_query', async q => {
   }
 
   if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-  meta.storeOpen = false;
-  saveAll();
-
-  // 1️⃣ Alert all users who have the menu open
-  for (const uid in sessions) {
-    const s = sessions[uid];
-    if (!s || !s.mainMsgId) continue;
-    if (uid == id) continue; // optional: skip admin who closed the store
-
-    bot.sendMessage(uid, "🚫 The store is currently closed. Please check back later!");
-  }
-
-  // 2️⃣ Update menus for all users (including admin)
-  for (const uid in sessions) {
-    if (sessions[uid].mainMsgId) showMainMenu(Number(uid));
-  }
-
-  return showMainMenu(id); // update admin menu
+    meta.storeOpen = false;
+    saveAll();
+    return showMainMenu(id);
   }
 
   // ================= PRODUCT SELECTION =================
