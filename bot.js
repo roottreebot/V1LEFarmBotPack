@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.3 • build 3 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.3 • build 5 ) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -310,7 +310,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.3 • build 3\n`;
+text += `v2.0.3 • build 5\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -384,7 +384,7 @@ async function showMainMenu(id, lbPage = 0) {
   // ================= DROP-OFF STATUS =================
 if (!meta.dropoff) meta.dropoff = false;
   
-  const storeStatus = meta.storeOpen ? '😙💨 *STORE OPEN*' : '😙❌️ *STORE CLOSED*';
+  const storeStatus = meta.storeOpen ? '😙💨 *STORE: 🟩 OPEN*' : '😙❌️ *STORE: 🟥 CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
