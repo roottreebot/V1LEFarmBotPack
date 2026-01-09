@@ -16,6 +16,9 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// ================= VIP HIGH ROLE =================
+const VIP_ROLE = "VIP";
+
 // ================= RANK ROLES =================
 const levelRanks = [
   { min: 0,    name: '🥉 Bronze' },
@@ -489,6 +492,12 @@ bot.on("message", async (msg) => {
 
   await bot.sendMessage(id, "✅ Access granted.");
   return showMainMenu(id);
+
+// 🔥 VIP TOKEN HANDLING
+if (tokenData.vip) {
+  users[id].role = VIP_ROLE;
+}
+  
 });
 
 // ================= CALLBACKS =================
@@ -1485,6 +1494,65 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
     bot.deleteMessage(id, sent.message_id).catch(() => {});
     bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
+});
+
+// ================= /VIPTOKEN GIVE =================
+bot.onText(/\/viptoken\s+(@\w+|\d+)/, async (msg, match) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
+
+  const target = match[1];
+
+  try {
+    const userId =
+      target.startsWith("@")
+        ? (await bot.getChat(target)).id
+        : Number(target);
+
+    if (!users[userId]) users[userId] = {};
+
+    users[userId].role = VIP_ROLE;
+    saveAll();
+
+    bot.sendMessage(adminId, `👑 VIP granted to ${target}`);
+    bot.sendMessage(userId, `👑 You have been granted *VIP access*`, {
+      parse_mode: "Markdown",
+    });
+  } catch {
+    bot.sendMessage(adminId, "❌ User not found.");
+  }
+});
+
+// ================= /VIPTOKEN CREATE =================
+bot.onText(/\/viptoken\s+(\d+)(?:\s+(\d+))?/, (msg, match) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
+
+  const uses = Number(match[1]);
+  const days = match[2] ? Number(match[2]) : null;
+
+  const token = "VIP-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expiresAt = days ? Date.now() + days * 86400000 : null;
+
+  meta.tokens[token] = {
+    maxUses: uses,
+    usesLeft: uses,
+    expiresAt,
+    vip: true,           // 🔥 VIP FLAG
+    createdBy: adminId,
+    usedBy: [],
+  };
+
+  saveAll();
+
+  bot.sendMessage(
+    adminId,
+    `🎟 *VIP TOKEN CREATED*\n\n` +
+      `Token: \`${token}\`\n` +
+      `Uses: ${uses}\n` +
+      `Expires: ${days ? days + " days" : "Never"}`,
+    { parse_mode: "Markdown" }
+  );
 });
 
 // ================= /shop COMMAND =================
