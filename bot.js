@@ -104,9 +104,10 @@ function ensureUser(id, username) {
       username: username || '',
       lastOrderAt: 0,
       roles: [],
-      vip: false,         // ✅ add vip flag
       verified: false,
       privateWL: false,
+
+      // 🔥 DAILY SYSTEM
       lastDaily: 0,
       dailyStreak: 0,
       lastSlot: 0,
@@ -154,8 +155,6 @@ const PRODUCTS = {
 };
 
 // ================= ROLE SHOP =================
-const VIP_ROLE = "👑 VIP";
-
 const ROLE_SHOP = {
   "🌟 Starter": { price: 10 },
   "🌀 New": { price: 10 },
@@ -227,25 +226,18 @@ const ROLE_SHOP = {
 
 // ================= HELPER FUNCTIONS =================
 function getHighestRole(user) {
-  if (user.vip) return VIP_ROLE; // VIP always highest
-
   if (!user.roles || user.roles.length === 0) return "_No role_";
 
+  // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
+
+  // Find the highest role the user owns
   let highest = "_No role_";
   for (const role of roleNames) {
     if (user.roles.includes(role)) highest = role;
   }
-  return highest;
-}
 
-function grantVIP(userId) {
-  ensureUser(userId);
-  if (!users[userId].roles.includes(VIP_ROLE)) {
-    users[userId].roles.push(VIP_ROLE);
-  }
-  users[userId].vip = true;
-  saveAll();
+  return highest;
 }
 
 function getLotteryMenuText() {
@@ -485,19 +477,18 @@ bot.on("message", async (msg) => {
   }
 
   // ✅ ACCEPT TOKEN
-data.usesLeft--;
-data.usedBy.push(id);
+  data.usesLeft--;
+  data.usedBy.push(id);
 
-if (data.vip) {
-  grantVIP(id);
-}
+  if (data.usesLeft === 0) delete meta.tokens[token];
 
-if (data.usesLeft === 0) delete meta.tokens[token];
+  u.verified = true;
+  sessions[id].awaitingToken = false;
 
-u.verified = true;
-sessions[id].awaitingToken = false;
-saveAll();
-  
+  saveAll();
+
+  await bot.sendMessage(id, "✅ Access granted.");
+  return showMainMenu(id);
 });
 
 // ================= CALLBACKS =================
@@ -902,6 +893,36 @@ bot.on('callback_query', async (q) => {
       message_id: q.message.message_id
     });
   }
+});
+
+// ================= TOKEN INPUT =================
+bot.on('message', async (msg) => {
+  const id = msg.chat.id;
+  const text = msg.text;
+
+  if (!text || text.startsWith('/')) return;
+
+  ensureUser(id);
+  const u = users[id];
+
+  if (u.verified) return;
+
+  const token = text.trim().toUpperCase();
+
+  if (!meta.inviteTokens.includes(token)) {
+    bot.deleteMessage(id, msg.message_id).catch(() => {});
+    return bot.sendMessage(id, '❌ Invalid invite token.');
+  }
+
+  // Consume token
+  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
+  u.verified = true;
+  saveAll();
+
+  bot.deleteMessage(id, msg.message_id).catch(() => {});
+  await bot.sendMessage(id, '✅ Access granted.');
+
+  showMainMenu(id);
 });
 
 // ================= /CREATETOKEN =================
@@ -1464,53 +1485,6 @@ Killer Green Budz brings that classic, sticky green goodness with a bold, natura
     bot.deleteMessage(id, sent.message_id).catch(() => {});
     bot.deleteMessage(id, cmdMsgId).catch(() => {});
   }, 10000);
-});
-
-// ================= /VIPTOKEN =================
-bot.onText(/\/viptoken\s+(@\w+|\d+)/, async (msg, match) => {
-  const adminId = msg.chat.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
-
-  let target = match[1];
-  let userId;
-
-  try {
-    if (target.startsWith("@")) {
-      const chat = await bot.getChat(target);
-      userId = chat.id;
-    } else {
-      userId = Number(target);
-    }
-  } catch {
-    return bot.sendMessage(adminId, "❌ User not found");
-  }
-
-  grantVIP(userId);
-  bot.sendMessage(adminId, `👑 VIP granted to ${target}`);
-  bot.sendMessage(userId, `👑 You are now VIP!`, { parse_mode: "Markdown" });
-});
-
-// ================= /VIPTOKEN CREATE =================
-bot.onText(/\/viptoken\s+(\d+)(?:\s+(\d+))?$/, (msg, match) => {
-  const adminId = msg.chat.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
-
-  const uses = Number(match[1]);
-  const days = match[2] ? Number(match[2]) : null;
-  const token = "VIP-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-  const expiresAt = days ? Date.now() + days * 86400000 : null;
-
-  meta.tokens[token] = {
-    maxUses: uses,
-    usesLeft: uses,
-    expiresAt,
-    vip: true,     // <—— VIP flag
-    createdBy: adminId,
-    usedBy: [],
-  };
-
-  saveAll();
-  bot.sendMessage(adminId, `🎟 VIP Token: \`${token}\` Uses: ${uses}${days ? " Expires in " + days + " day(s)" : ""}`, { parse_mode: "Markdown" });
 });
 
 // ================= /shop COMMAND =================
