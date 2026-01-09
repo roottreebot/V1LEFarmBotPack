@@ -135,9 +135,14 @@ function giveXP(id, xp) {
 }
 
 function xpBar(xp, lvl) {
-  const max = lvl * 5;
-  const fill = Math.floor((xp / max) * 10);
-  return '🟩'.repeat(fill) + '⬜'.repeat(10 - fill) + ` ${xp}/${max}`;
+  const max = Math.max(1, lvl * 5); // prevent divide by 0
+  const size = 10;
+
+  const percent = Math.min(Math.max(xp / max, 0), 1);
+  const filled = Math.floor(percent * size);
+  const empty = size - filled;
+
+  return `▏XP ${'▰'.repeat(filled)}${'▱'.repeat(empty)} ${xp} / ${max}`;
 }
 
 // ================= STREAK DISPLAY =================
