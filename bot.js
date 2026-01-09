@@ -142,7 +142,7 @@ function xpBar(xp, lvl) {
   const filled = Math.floor(percent * size);
   const empty = size - filled;
 
-  return `▏XP ${'▰'.repeat(filled)}${'▱'.repeat(empty)} ${xp} / ${max}`;
+  return `*XP* ${'▰'.repeat(filled)}${'▱'.repeat(empty)} ${xp} / ${max}`;
 }
 
 // ================= STREAK DISPLAY =================
