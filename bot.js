@@ -372,10 +372,14 @@ async function showMainMenu(id, lbPage = 0) {
   const lb = getLeaderboard(lbPage);
 
   let kb = [
-    ...Object.keys(PRODUCTS).map(p => [{ text: `🛍 ${p}`, callback_data: `product_${p}` }]),
-    lb.buttons[0],
-
-  ];
+  [
+    { text: `🥤 Sprite Popperz`, callback_data: 'product_Sprite Popperz' }
+  ],
+  [
+    { text: `🍀 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
+  ],
+  lb.buttons[0]
+];
 
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
