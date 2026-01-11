@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.3 • build 5 ) ===
+// === ROOTTREE BOT (FINAL: v2.0.3 • build 6) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -315,7 +315,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.3 • build 5\n`;
+text += `v2.0.3 • build 6\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -376,7 +376,7 @@ async function showMainMenu(id, lbPage = 0) {
     { text: `🥤 Sprite Popperz`, callback_data: 'product_Sprite Popperz' }
   ],
   [
-    { text: `🍀 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
+    { text: `🍃 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
   ],
   lb.buttons[0]
 ];
