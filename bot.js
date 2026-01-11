@@ -1684,10 +1684,6 @@ bot.onText(/\/userhelp/, async (msg) => {
 🎡 /spin — *Spin The Daily Wheel*
 🎁 /daily — *Claim daily Reward*
 
-🧼 *CLEANER*
-———————————————————
-🧹 /clearhistory — *Clear ALL Messages*
-
 📝 *FEEDBACK*
 ———————————————————
 💬 /feedback <text> — *Send Feedback To Admins*
