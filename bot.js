@@ -1603,52 +1603,29 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
   );
 });
 
-// ================= /CLEARHISTORY =================
-bot.onText(/\/clearhistory/, async (msg) => {
+// ================= USER /CLEARBOT =================
+bot.onText(/\/clearbot/, async (msg) => {
   const id = msg.chat.id;
 
   if (!sessions[id]) sessions[id] = {};
-
-  // Track messages deleted
-  let deletedCount = 0;
-
-  // Delete all tracked bot messages
-  if (sessions[id].botMessages && sessions[id].botMessages.length) {
-    for (const mid of sessions[id].botMessages) {
-      try {
-        await bot.deleteMessage(id, mid);
-        deletedCount++;
-      } catch (e) {
-        // Ignore errors if message already deleted or too old
-      }
-    }
-  }
-
-  // Clear bot message tracking
-  sessions[id].botMessages = [];
-
-  // Edit main menu message to remove inline keyboard (if exists)
-  if (sessions[id].mainMsgId) {
-    try {
-      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: id, message_id: sessions[id].mainMsgId });
-    } catch (e) {
-      // Ignore errors if menu already deleted or no keyboard
-    }
-  }
-
-  // Edit active drop message (if exists)
-  if (sessions[id].dropMsgId) {
-    try {
-      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: id, message_id: sessions[id].dropMsgId });
-    } catch (e) {}
-  }
-
-  // Send a temporary confirmation
-  const confirmation = await bot.sendMessage(id, `🗑️ Cleared ${deletedCount} bot messages and cleaned menus.`);
-
-  // Track confirmation message so it can also be cleared later
   if (!sessions[id].botMessages) sessions[id].botMessages = [];
-  sessions[id].botMessages.push(confirmation.message_id);
+
+  let deleted = 0;
+
+  for (const mid of sessions[id].botMessages) {
+    try {
+      await bot.deleteMessage(id, mid);
+      deleted++;
+    } catch (e) {
+      // message too old or already deleted — ignore
+    }
+  }
+
+  // reset tracked messages
+  sessions[id].botMessages = [];
+  sessions[id].mainMsgId = null;
+
+  bot.sendMessage(id, `🧹 Cleared ${deleted} bot message(s).`);
 });
 
 // ================= HELPER FUNCTION =================
