@@ -919,36 +919,6 @@ bot.on('callback_query', async (q) => {
   }
 });
 
-// ================= TOKEN INPUT =================
-bot.on('message', async (msg) => {
-  const id = msg.chat.id;
-  const text = msg.text;
-
-  if (!text || text.startsWith('/')) return;
-
-  ensureUser(id);
-  const u = users[id];
-
-  if (u.verified) return;
-
-  const token = text.trim().toUpperCase();
-
-  if (!meta.inviteTokens.includes(token)) {
-    bot.deleteMessage(id, msg.message_id).catch(() => {});
-    return bot.sendMessage(id, '❌ Invalid invite token.');
-  }
-
-  // Consume token
-  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
-  u.verified = true;
-  saveAll();
-
-  bot.deleteMessage(id, msg.message_id).catch(() => {});
-  await bot.sendMessage(id, '✅ Access granted.');
-
-  showMainMenu(id);
-});
-
 // ================= /CREATETOKEN =================
 bot.onText(/\/createtoken (\d+)(?: (\S+))?/, (msg, match) => {
   const id = msg.chat.id;
