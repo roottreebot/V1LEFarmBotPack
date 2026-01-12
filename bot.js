@@ -340,28 +340,23 @@ text += `v2.0.3 • build 6\n`;
 // ================= SEND/EDIT MAIN MENU =================
 async function sendOrEdit(id, text, opt = {}) {
   if (!sessions[id]) sessions[id] = {};
+  const mid = sessions[id].mainMsgId;
 
-  // if no menu yet → SEND
-  if (!sessions[id].mainMsgId) {
-    const msg = await bot.sendMessage(id, text, opt);
-    sessions[id].mainMsgId = msg.message_id;
-    saveAll();
-    return;
+  if (mid) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: id,
+        message_id: mid,
+        ...opt
+      });
+      return;
+    } catch {
+      sessions[id].mainMsgId = null;
+    }
   }
 
-  // otherwise → EDIT
-  try {
-    await bot.editMessageText(text, {
-      chat_id: id,
-      message_id: sessions[id].mainMsgId,
-      ...opt
-    });
-  } catch {
-    // edit failed → resend
-    const msg = await bot.sendMessage(id, text, opt);
-    sessions[id].mainMsgId = msg.message_id;
-    saveAll();
-  }
+  const m = await bot.sendMessage(id, text, opt);
+  sessions[id].mainMsgId = m.message_id;
 }
 
 // ================= MAIN MENU =================
@@ -922,6 +917,36 @@ bot.on('callback_query', async (q) => {
       message_id: q.message.message_id
     });
   }
+});
+
+// ================= TOKEN INPUT =================
+bot.on('message', async (msg) => {
+  const id = msg.chat.id;
+  const text = msg.text;
+
+  if (!text || text.startsWith('/')) return;
+
+  ensureUser(id);
+  const u = users[id];
+
+  if (u.verified) return;
+
+  const token = text.trim().toUpperCase();
+
+  if (!meta.inviteTokens.includes(token)) {
+    bot.deleteMessage(id, msg.message_id).catch(() => {});
+    return bot.sendMessage(id, '❌ Invalid invite token.');
+  }
+
+  // Consume token
+  meta.inviteTokens = meta.inviteTokens.filter(t => t !== token);
+  u.verified = true;
+  saveAll();
+
+  bot.deleteMessage(id, msg.message_id).catch(() => {});
+  await bot.sendMessage(id, '✅ Access granted.');
+
+  showMainMenu(id);
 });
 
 // ================= /CREATETOKEN =================
