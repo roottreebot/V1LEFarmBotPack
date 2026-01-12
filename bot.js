@@ -1,4 +1,5 @@
 // === ROOTTREE BOT (FINAL: v2.0.3 • build 6) ===
+const crypto = require('crypto');
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -14,6 +15,8 @@ if (!TOKEN || !ADMIN_IDS.length) {
   process.exit(1);
 }
 
+const ADMIN_PANEL_URL = 'http://localhost:3000';
+const ADMIN_SECRET = 'CHANGE_THIS_TO_THE_SAME_SECRET';
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // ================= RANK ROLES =================
@@ -230,6 +233,16 @@ const ROLE_SHOP = {
 };
 
 // ================= HELPER FUNCTIONS =================
+function createAdminToken(userId) {
+  const payload = `${userId}:${Date.now()}`;
+  const sig = crypto
+    .createHmac('sha256', ADMIN_SECRET)
+    .update(payload)
+    .digest('hex');
+
+  return Buffer.from(`${payload}:${sig}`).toString('base64');
+}
+
 function getHighestRole(user) {
   if (!user.roles || user.roles.length === 0) return "_No role_";
 
@@ -380,6 +393,16 @@ async function showMainMenu(id, lbPage = 0) {
   ],
   lb.buttons[0]
 ];
+if (ADMIN_IDS.includes(id)) {
+  const token = createAdminToken(id);
+
+  kb.push([
+    {
+      text: '🛠 Admin Panel',
+      url: `${ADMIN_PANEL_URL}/login?token=${token}`
+    }
+  ]);
+}
 
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
