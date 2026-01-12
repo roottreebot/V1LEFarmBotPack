@@ -1,5 +1,4 @@
 // === ROOTTREE BOT (FINAL: v2.0.3 • build 6) ===
-const crypto = require('crypto');
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -9,14 +8,13 @@ const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS
   ? process.env.ADMIN_IDS.split(',').map(Number)
   : [];
+const ADMIN_PANEL_URL = "http://localhost:3000";
 
 if (!TOKEN || !ADMIN_IDS.length) {
   console.error('❌ BOT_TOKEN or ADMIN_IDS missing');
   process.exit(1);
 }
 
-const ADMIN_PANEL_URL = 'http://localhost:3000';
-const ADMIN_SECRET = 'CHANGE_THIS_TO_THE_SAME_SECRET';
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // ================= RANK ROLES =================
@@ -233,16 +231,6 @@ const ROLE_SHOP = {
 };
 
 // ================= HELPER FUNCTIONS =================
-function createAdminToken(userId) {
-  const payload = `${userId}:${Date.now()}`;
-  const sig = crypto
-    .createHmac('sha256', ADMIN_SECRET)
-    .update(payload)
-    .digest('hex');
-
-  return Buffer.from(`${payload}:${sig}`).toString('base64');
-}
-
 function getHighestRole(user) {
   if (!user.roles || user.roles.length === 0) return "_No role_";
 
@@ -391,18 +379,13 @@ async function showMainMenu(id, lbPage = 0) {
   [
     { text: `🍃 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
   ],
-  lb.buttons[0]
+  [
+    { text: "⚙️ Admin Panel", url: ADMIN_PANEL_URL }
+  ],
+    
+    
+    lb.buttons[0]
 ];
-
-// ================= HANDLE ADMIN BUTTON =================
-bot.on("callback_query", async (q) => {
-  const id = q.from.id;
-
-  if (q.data === "admin_panel" && ADMIN_IDS.includes(id.toString())) {
-    // Replace with your actual admin site URL
-    bot.sendMessage(id, "🌐 Admin Panel: http://localhost:3000");
-  }
-});
 
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
@@ -454,63 +437,19 @@ ${lb.text}`,
   );
 }
 
-// ================= SESSIONS & MAIN MENU =================
-const sessions = {}; // make sure this exists
-
-const ADMIN_PANEL_URL = "https://your-admin-site.com"; // replace with your actual admin site URL
-
-// Helper: Ensure user exists in your users object
-function ensureUser(id, username) {
-  if (!users[id]) {
-    users[id] = { username: username || "Unknown", banned: false, orders: [], weeklyXp: 0 };
-  }
-}
-
-// Send or edit main menu
-async function sendOrEdit(id, text, opt = {}) {
-  if (!sessions[id]) sessions[id] = {};
-  const mid = sessions[id].mainMsgId;
-
-  try {
-    if (mid) {
-      // Try to edit the previous main menu
-      await bot.editMessageText(text, { chat_id: id, message_id: mid, ...opt });
-    } else {
-      // If no previous menu, send a new message
-      const msg = await bot.sendMessage(id, text, opt);
-      sessions[id].mainMsgId = msg.message_id;
-    }
-  } catch (err) {
-    // fallback: send a new message if edit fails
-    console.error('sendOrEdit error:', err);
-    const msg = await bot.sendMessage(id, text, opt);
-    sessions[id].mainMsgId = msg.message_id;
-  }
-}
-
-// ================= /START COMMAND =================
+// ================= /START =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
-  const username = msg.from.username || msg.from.first_name;
+  ensureUser(id);
+  const u = users[id];
 
-  ensureUser(id, username);
-
-  const mainText = `👋 Welcome ${username}!\n\nChoose an option below:`;
-
-  // Build inline keyboard
-  const keyboard = [
-    [{ text: '🛒 Products', callback_data: 'show_products' }],
-    [{ text: '📦 Orders', callback_data: 'show_orders' }],
-  ];
-
-  // Add admin panel button if user is admin
-  if (ADMIN_IDS.includes(id.toString())) {
-    keyboard.push([{ text: '⚙️ Admin Panel', url: ADMIN_PANEL_URL }]);
+  if (!u.verified) {
+    sessions[id] = sessions[id] || {};
+    sessions[id].awaitingToken = true;
+    return bot.sendMessage(id, "🔑 Enter your invite token:");
   }
 
-  await sendOrEdit(id, mainText, {
-    reply_markup: { inline_keyboard: keyboard }
-  });
+  return showMainMenu(id);
 });
 
 // ================= TOKEN INPUT =================
