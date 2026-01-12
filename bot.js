@@ -393,16 +393,16 @@ async function showMainMenu(id, lbPage = 0) {
   ],
   lb.buttons[0]
 ];
-if (ADMIN_IDS.includes(id)) {
-  const token = createAdminToken(id);
 
-  kb.push([
-    {
-      text: '🛠 Admin Panel',
-      url: `${ADMIN_PANEL_URL}/login?token=${token}`
-    }
-  ]);
-}
+// ================= HANDLE ADMIN BUTTON =================
+bot.on("callback_query", async (q) => {
+  const id = q.from.id;
+
+  if (q.data === "admin_panel" && ADMIN_IDS.includes(id.toString())) {
+    // Replace with your actual admin site URL
+    bot.sendMessage(id, "🌐 Admin Panel: http://localhost:3000");
+  }
+});
 
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
@@ -454,19 +454,63 @@ ${lb.text}`,
   );
 }
 
-// ================= /START =================
+// ================= SESSIONS & MAIN MENU =================
+const sessions = {}; // make sure this exists
+
+const ADMIN_PANEL_URL = "https://your-admin-site.com"; // replace with your actual admin site URL
+
+// Helper: Ensure user exists in your users object
+function ensureUser(id, username) {
+  if (!users[id]) {
+    users[id] = { username: username || "Unknown", banned: false, orders: [], weeklyXp: 0 };
+  }
+}
+
+// Send or edit main menu
+async function sendOrEdit(id, text, opt = {}) {
+  if (!sessions[id]) sessions[id] = {};
+  const mid = sessions[id].mainMsgId;
+
+  try {
+    if (mid) {
+      // Try to edit the previous main menu
+      await bot.editMessageText(text, { chat_id: id, message_id: mid, ...opt });
+    } else {
+      // If no previous menu, send a new message
+      const msg = await bot.sendMessage(id, text, opt);
+      sessions[id].mainMsgId = msg.message_id;
+    }
+  } catch (err) {
+    // fallback: send a new message if edit fails
+    console.error('sendOrEdit error:', err);
+    const msg = await bot.sendMessage(id, text, opt);
+    sessions[id].mainMsgId = msg.message_id;
+  }
+}
+
+// ================= /START COMMAND =================
 bot.onText(/\/start/, async (msg) => {
   const id = msg.chat.id;
-  ensureUser(id);
-  const u = users[id];
+  const username = msg.from.username || msg.from.first_name;
 
-  if (!u.verified) {
-    sessions[id] = sessions[id] || {};
-    sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 Enter your invite token:");
+  ensureUser(id, username);
+
+  const mainText = `👋 Welcome ${username}!\n\nChoose an option below:`;
+
+  // Build inline keyboard
+  const keyboard = [
+    [{ text: '🛒 Products', callback_data: 'show_products' }],
+    [{ text: '📦 Orders', callback_data: 'show_orders' }],
+  ];
+
+  // Add admin panel button if user is admin
+  if (ADMIN_IDS.includes(id.toString())) {
+    keyboard.push([{ text: '⚙️ Admin Panel', url: ADMIN_PANEL_URL }]);
   }
 
-  return showMainMenu(id);
+  await sendOrEdit(id, mainText, {
+    reply_markup: { inline_keyboard: keyboard }
+  });
 });
 
 // ================= TOKEN INPUT =================
