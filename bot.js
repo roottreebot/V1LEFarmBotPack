@@ -8,7 +8,6 @@ const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_IDS
   ? process.env.ADMIN_IDS.split(',').map(Number)
   : [];
-const ADMIN_PANEL_URL = "http://localhost:3000";
 
 if (!TOKEN || !ADMIN_IDS.length) {
   console.error('❌ BOT_TOKEN or ADMIN_IDS missing');
@@ -379,12 +378,7 @@ async function showMainMenu(id, lbPage = 0) {
   [
     { text: `🍃 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
   ],
-  [
-    { text: "⚙️ Admin Panel", url: ADMIN_PANEL_URL }
-  ],
-    
-    
-    lb.buttons[0]
+  lb.buttons[0]
 ];
 
   if (ADMIN_IDS.includes(id)) {
