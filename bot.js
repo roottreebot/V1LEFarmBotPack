@@ -340,23 +340,28 @@ text += `v2.0.3 • build 6\n`;
 // ================= SEND/EDIT MAIN MENU =================
 async function sendOrEdit(id, text, opt = {}) {
   if (!sessions[id]) sessions[id] = {};
-  const mid = sessions[id].mainMsgId;
 
-  if (mid) {
-    try {
-      await bot.editMessageText(text, {
-        chat_id: id,
-        message_id: mid,
-        ...opt
-      });
-      return;
-    } catch {
-      sessions[id].mainMsgId = null;
-    }
+  // if no menu yet → SEND
+  if (!sessions[id].mainMsgId) {
+    const msg = await bot.sendMessage(id, text, opt);
+    sessions[id].mainMsgId = msg.message_id;
+    saveAll();
+    return;
   }
 
-  const m = await bot.sendMessage(id, text, opt);
-  sessions[id].mainMsgId = m.message_id;
+  // otherwise → EDIT
+  try {
+    await bot.editMessageText(text, {
+      chat_id: id,
+      message_id: sessions[id].mainMsgId,
+      ...opt
+    });
+  } catch {
+    // edit failed → resend
+    const msg = await bot.sendMessage(id, text, opt);
+    sessions[id].mainMsgId = msg.message_id;
+    saveAll();
+  }
 }
 
 // ================= MAIN MENU =================
