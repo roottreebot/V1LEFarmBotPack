@@ -1011,72 +1011,96 @@ bot.onText(/\/deletetoken (.+)/, (msg, match) => {
 
 // ===============================
 // ADMIN: /tick — add debt tick
-bot.onText(/^\/tick (.+) (@\w+) (\d+)$/i, (msg) => {
-  const adminId = msg.chat.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
+bot.onText(/^\/tick\s+(.+)/i, (msg) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
-  const parts = msg.text.split(' ');
-  const amount = Number(parts.pop());
-  const username = parts.pop().replace('@','');
-  const fullName = parts.slice(1).join(' ');
+  const args = msg.text.split(' ').slice(1);
+  if (args.length < 3) {
+    return bot.sendMessage(id, '❌ Usage: /tick Full Name @username amount');
+  }
 
-  const uid = findUserIdByUsername(username);
-  if (!uid) return bot.sendMessage(adminId, '❌ User has not used the bot yet.');
+  const amount = Number(args.pop());
+  const username = args.pop().replace('@', '');
+  const fullName = args.join(' ');
 
-  users[uid].ticks.push({
+  if (isNaN(amount)) {
+    return bot.sendMessage(id, '❌ Amount must be a number');
+  }
+
+  const userId = Object.keys(users).find(
+    uid =>
+      users[uid].username &&
+      users[uid].username.toLowerCase() === username.toLowerCase()
+  );
+
+  if (!userId) {
+    return bot.sendMessage(id, '❌ User must start the bot first');
+  }
+
+  users[userId].ticks = users[userId].ticks || [];
+  users[userId].ticks.push({
     name: fullName,
     username: '@' + username,
     amount,
-    addedBy: adminId,
-    addedAt: Date.now(),
+    addedAt: Date.now()
   });
 
   saveAll();
 
-  bot.sendMessage(adminId, `✅ Added tick: ${fullName} — @${username} — $${amount}`);
+  bot.sendMessage(
+    id,
+    `✅ Tick added\n👤 ${fullName}\n💰 $${amount}`
+  );
 });
 
 // ===============================
 // ADMIN: /ticklist — list all ticks
 bot.onText(/^\/ticklist$/i, (msg) => {
-  const adminId = msg.chat.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
-  let resp = '📒 ACTIVE TICKS:\n\n';
-  let any = false;
+  let text = '📒 ACTIVE TICKS\n\n';
+  let found = false;
 
-  for (const id in users) {
-    (users[id].ticks || []).forEach(t => {
-      any = true;
-      resp += `👤 ${t.name} (${t.username}) owes $${t.amount}\n`;
+  for (const uid in users) {
+    (users[uid].ticks || []).forEach(t => {
+      found = true;
+      text += `👤 ${t.name} (${t.username}) — $${t.amount}\n`;
     });
   }
 
-  if (!any) resp = '📭 No active ticks.';
-  bot.sendMessage(adminId, resp);
+  bot.sendMessage(id, found ? text : '📭 No active ticks');
 });
 
 // ===============================
 // ADMIN: /removetick — remove a tick
-bot.onText(/^\/removetick (@\w+) (\d+)$/i, (msg) => {
-  const adminId = msg.chat.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
+bot.onText(/^\/removetick\s+(@\w+)\s+(\d+)/i, (msg) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
-  const [, username, amountStr] = msg.text.match(/^\/removetick (@\w+) (\d+)$/i);
-  const amount = Number(amountStr);
-  const uid = findUserIdByUsername(username);
+  const [, username, amt] = msg.text.match(/^\/removetick\s+(@\w+)\s+(\d+)/i);
+  const amount = Number(amt);
 
-  if (!uid) return bot.sendMessage(adminId, '❌ User not found.');
+  const userId = Object.keys(users).find(
+    uid =>
+      users[uid].username &&
+      users[uid].username.toLowerCase() === username.slice(1).toLowerCase()
+  );
 
-  const before = users[uid].ticks.length;
-  users[uid].ticks = users[uid].ticks.filter(t => t.amount !== amount);
+  if (!userId || !users[userId].ticks) {
+    return bot.sendMessage(id, '❌ Tick not found');
+  }
 
-  if (before === users[uid].ticks.length) {
-    return bot.sendMessage(adminId, '❌ Tick not found.');
+  const before = users[userId].ticks.length;
+  users[userId].ticks = users[userId].ticks.filter(t => t.amount !== amount);
+
+  if (before === users[userId].ticks.length) {
+    return bot.sendMessage(id, '❌ Tick not found');
   }
 
   saveAll();
-  bot.sendMessage(adminId, `✅ Removed tick $${amount} for ${username}`);
+  bot.sendMessage(id, '✅ Tick removed');
 });
 
 // ===============================
