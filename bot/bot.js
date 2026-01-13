@@ -106,6 +106,7 @@ function ensureUser(id, username) {
       roles: [],
       verified: false,
       privateWL: false,
+      ticks: [],
 
       // 🔥 DAILY SYSTEM
       lastDaily: 0,
@@ -999,6 +1000,102 @@ bot.onText(/\/deletetoken (.+)/, (msg, match) => {
   saveAll();
 
   return bot.sendMessage(id, `✅ Token "${token}" has been deleted.`);
+});
+
+// ===============================
+// ADMIN: /tick — add debt tick
+bot.onText(/^\/tick\s+(.+?)\s+(@\w+)\s+(\d+)$/, (msg, match) => {
+  const adminId = msg.from.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
+
+  const name = match[1].trim();
+  const username = match[2].replace('@','').trim();
+  const amount = parseInt(match[3]);
+
+  const userId = Object.keys(users).find(id => users[id].username?.toLowerCase() === username.toLowerCase());
+  if (!userId) return bot.sendMessage(msg.chat.id, "❌ User not found");
+
+  ensureUser(userId, username);
+  users[userId].ticks.push({ name, username: '@' + username, amount });
+  saveAll();
+
+  bot.sendMessage(msg.chat.id, `✅ Tick added for @${username}: $${amount}`);
+});
+
+// ===============================
+// ADMIN: /ticklist — list all ticks
+bot.onText(/\/ticklist$/, msg => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+
+  let text = "📒 *Tick List*\n\n";
+  let any = false;
+
+  for (const id in users) {
+    users[id].ticks.forEach(t => {
+      any = true;
+      text += `👤 ${t.name} (${t.username}) — owes $${t.amount}\n`;
+    });
+  }
+
+  if (!any) text += "_No ticks found_";
+  bot.sendMessage(msg.chat.id, text, { parse_mode: "Markdown" });
+});
+
+// ===============================
+// ADMIN: /removetick — remove a tick
+bot.onText(/^\/removetick\s+(@\w+)\s+(\d+)$/, (msg, match) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+
+  const username = match[1].replace('@','').toLowerCase();
+  const amount   = parseInt(match[2]);
+
+  const userId = Object.keys(users).find(id => users[id].username?.toLowerCase() === username);
+  if (!userId) return bot.sendMessage(msg.chat.id, "❌ User not found");
+
+  ensureUser(userId, username);
+  const before = users[userId].ticks.length;
+  users[userId].ticks = users[userId].ticks.filter(t => t.amount !== amount);
+
+  if (users[userId].ticks.length === before) return bot.sendMessage(msg.chat.id, "❌ Tick not found");
+  saveAll();
+  bot.sendMessage(msg.chat.id, `✅ Removed tick $${amount} from @${username}`);
+});
+
+// ===============================
+// ADMIN: /allusers — paginated listing
+const USERS_PER_PAGE = 5;
+
+function sendUserPage(chatId, page) {
+  const ids = Object.keys(users);
+  const start = page * USERS_PER_PAGE;
+  const pageUsers = ids.slice(start, start + USERS_PER_PAGE);
+
+  let text = `👥 *All Users* — Page ${page+1}\n\n`;
+  pageUsers.forEach(id => {
+    const u = users[id];
+    text += `• @${u.username||id} — ID: \`${id}\`\n`;
+  });
+
+  const buttons = [];
+  if (page > 0) buttons.push({ text: "⬅ Prev", callback_data: `users_${page-1}` });
+  if (start + USERS_PER_PAGE < ids.length) buttons.push({ text: "Next ➡", callback_data: `users_${page+1}` });
+
+  bot.sendMessage(chatId, text, {
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: [buttons] }
+  });
+}
+
+bot.onText(/\/allusers$/, msg => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  sendUserPage(msg.chat.id, 0);
+});
+
+bot.on('callback_query', q => {
+  if (!q.data.startsWith("users_")) return;
+  const page = parseInt(q.data.split("_")[1]);
+  bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
+  sendUserPage(q.message.chat.id, page);
 });
 
 // ================= /clearpending =================
