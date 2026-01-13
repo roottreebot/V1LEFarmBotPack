@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.3 • build 6) ===
+// === ROOTTREE BOT (FINAL: v2.0.4 • build 2) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -323,7 +323,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.3 • build 6\n`;
+text += `v2.0.4 • build 2\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -1897,9 +1897,10 @@ bot.onText(/\/adminhelp/, async (msg) => {
 /dropoff — Turn Drop Off
 /dropon — Turn Drop On
 
-📦 *ACTIVE*
+📦 *ACTIVE + USERS*
 ———————————————————
 👥 /activeusers — *Show Active Users*
+🏘 /allusers — *See All Users*
 
 🎁 *LOTTERY*
 ———————————————————
@@ -1915,6 +1916,14 @@ bot.onText(/\/adminhelp/, async (msg) => {
 ———————————————————
 ⏱ /uptime — *Bot Uptime*
 🗑 /clearpending <Optional @user> — *Clear ALL Pending Orders*
+
+———————————————————
+
+🎫 *TICKS*
+———————————————————
+🎟 /tick John Smith @exampleuser 50 — Make Tick
+📮 /ticklist — Tick List
+🙂 /removetick @exampleuser 50 — Remove Tick
 
 ———————————————————
 `;
