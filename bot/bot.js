@@ -231,12 +231,10 @@ const ROLE_SHOP = {
 };
 
 // ================= HELPER FUNCTIONS =================
-function getUserIdByUsername(username) {
+function findUserIdByUsername(username) {
   username = username.replace('@', '').toLowerCase();
   return Object.keys(users).find(
-    id =>
-      users[id].username &&
-      users[id].username.toLowerCase() === username
+    id => users[id].username && users[id].username.toLowerCase() === username
   );
 }
 
@@ -1013,116 +1011,105 @@ bot.onText(/\/deletetoken (.+)/, (msg, match) => {
 
 // ===============================
 // ADMIN: /tick — add debt tick
-bot.onText(/^\/tick (.+) (@\w+) (\d+)$/i, msg => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(String(id))) return;
+bot.onText(/^\/tick (.+) (@\w+) (\d+)$/i, (msg) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
 
-  const [, fullName, username, amount] =
-    msg.text.match(/^\/tick (.+) (@\w+) (\d+)$/i);
+  const parts = msg.text.split(' ');
+  const amount = Number(parts.pop());
+  const username = parts.pop().replace('@','');
+  const fullName = parts.slice(1).join(' ');
 
-  const userId = getUserIdByUsername(username);
-  if (!userId) {
-    return bot.sendMessage(msg.chat.id, '❌ User must start the bot first.');
-  }
+  const uid = findUserIdByUsername(username);
+  if (!uid) return bot.sendMessage(adminId, '❌ User has not used the bot yet.');
 
-  users[userId].ticks ??= [];
-  users[userId].ticks.push({
+  users[uid].ticks.push({
     name: fullName,
-    username,
-    amount: Number(amount),
-    addedAt: Date.now()
+    username: '@' + username,
+    amount,
+    addedBy: adminId,
+    addedAt: Date.now(),
   });
 
   saveAll();
-  bot.sendMessage(
-    msg.chat.id,
-    `✅ Tick added\n👤 ${fullName}\n💰 $${amount}`
-  );
+
+  bot.sendMessage(adminId, `✅ Added tick: ${fullName} — @${username} — $${amount}`);
 });
 
 // ===============================
 // ADMIN: /ticklist — list all ticks
-bot.onText(/^\/ticklist$/i, msg => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(String(id))) return;
+bot.onText(/^\/ticklist$/i, (msg) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
 
-  let output = '📒 ACTIVE TICKS\n\n';
-  let found = false;
+  let resp = '📒 ACTIVE TICKS:\n\n';
+  let any = false;
 
-  for (const uid in users) {
-    (users[uid].ticks || []).forEach(t => {
-      found = true;
-      output += `👤 ${t.name} (${t.username}) — $${t.amount}\n`;
+  for (const id in users) {
+    (users[id].ticks || []).forEach(t => {
+      any = true;
+      resp += `👤 ${t.name} (${t.username}) owes $${t.amount}\n`;
     });
   }
 
-  bot.sendMessage(
-    msg.chat.id,
-    found ? output : '📭 No active ticks'
-  );
+  if (!any) resp = '📭 No active ticks.';
+  bot.sendMessage(adminId, resp);
 });
 
 // ===============================
 // ADMIN: /removetick — remove a tick
-bot.onText(/^\/removetick (@\w+) (\d+)$/i, msg => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(String(id))) return;
+bot.onText(/^\/removetick (@\w+) (\d+)$/i, (msg) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
 
-  const [, username, amount] =
-    msg.text.match(/^\/removetick (@\w+) (\d+)$/i);
+  const [, username, amountStr] = msg.text.match(/^\/removetick (@\w+) (\d+)$/i);
+  const amount = Number(amountStr);
+  const uid = findUserIdByUsername(username);
 
-  const userId = getUserIdByUsername(username);
-  if (!userId || !users[userId].ticks) {
-    return bot.sendMessage(msg.chat.id, '❌ Tick not found.');
-  }
+  if (!uid) return bot.sendMessage(adminId, '❌ User not found.');
 
-  const before = users[userId].ticks.length;
-  users[userId].ticks = users[userId].ticks.filter(
-    t => t.amount !== Number(amount)
-  );
+  const before = users[uid].ticks.length;
+  users[uid].ticks = users[uid].ticks.filter(t => t.amount !== amount);
 
-  if (before === users[userId].ticks.length) {
-    return bot.sendMessage(msg.chat.id, '❌ Tick not found.');
+  if (before === users[uid].ticks.length) {
+    return bot.sendMessage(adminId, '❌ Tick not found.');
   }
 
   saveAll();
-  bot.sendMessage(msg.chat.id, '✅ Tick removed.');
+  bot.sendMessage(adminId, `✅ Removed tick $${amount} for ${username}`);
 });
 
 // ===============================
 // ADMIN: /allusers — paginated listing
-const USERS_PER_PAGE = 5;
+const USERS_PER_PAGE = 6;
 
-bot.onText(/^\/allusers$/i, msg => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(String(id))) return;
-  sendUsersPage(msg.chat.id, 0);
-});
-
-function sendUsersPage(chatId, page) {
-  const ids = Object.keys(users);
+function sendUsersPage(chatId, page = 0) {
+  const list = Object.keys(users);
   const start = page * USERS_PER_PAGE;
-  const slice = ids.slice(start, start + USERS_PER_PAGE);
+  const slice = list.slice(start, start + USERS_PER_PAGE);
 
-  let text = `👥 ALL USERS (Page ${page + 1})\n\n`;
-  slice.forEach(uid => {
-    text += `• @${users[uid].username || 'no_username'} (${uid})\n`;
+  let text = `👥 ALL USERS (Page ${page+1})\n\n`;
+  slice.forEach(id => {
+    text += `• @${users[id].username || id} (${id})\n`;
   });
 
   const buttons = [];
-  if (page > 0)
-    buttons.push({ text: '⬅ Prev', callback_data: `users_${page - 1}` });
-  if (start + USERS_PER_PAGE < ids.length)
-    buttons.push({ text: 'Next ➡', callback_data: `users_${page + 1}` });
+  if (page > 0) buttons.push({ text: '⬅ Prev', callback_data: `u_${page-1}` });
+  if (start + USERS_PER_PAGE < list.length) buttons.push({ text: 'Next ➡', callback_data: `u_${page+1}` });
 
   bot.sendMessage(chatId, text, {
     reply_markup: { inline_keyboard: [buttons] }
   });
 }
 
-bot.on('callback_query', q => {
-  if (!q.data.startsWith('users_')) return;
+bot.onText(/^\/allusers$/i, (msg) => {
+  const adminId = msg.chat.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
+  sendUsersPage(adminId, 0);
+});
 
+bot.on('callback_query', q => {
+  if (!q.data.startsWith('u_')) return;
   const page = Number(q.data.split('_')[1]);
   bot.deleteMessage(q.message.chat.id, q.message.message_id).catch(() => {});
   sendUsersPage(q.message.chat.id, page);
