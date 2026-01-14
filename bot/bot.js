@@ -16,6 +16,10 @@ if (!TOKEN || !ADMIN_IDS.length) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+const ANNOUNCE_CHANNEL_ID = '-1002927619838';
+const WELCOME_GIF = 'https://media.giphy.com/media/3o6ZtaO9BZHcOjmErm/giphy.gif';
+const WELCOME_DELETE_MS = 10000;
+
 // ================= RANK ROLES =================
 const levelRanks = [
   { min: 0,    name: '🥉 *Bronze*' },
@@ -809,6 +813,32 @@ bot.onText(/\/activeusers/, (msg) => {
   });
 });
 
+// ================= /publish =================
+bot.onText(/^\/publish\s+(.+)/is, (msg, match) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const announcement = match[1];
+
+  const text =
+`━━━━━━━━━━━━━━━━━━
+🌿 *V1LE FARM ANNOUNCEMENT*
+━━━━━━━━━━━━━━━━━━
+
+${announcement}
+
+━━━━━━━━━━━━━━━━━━
+🔥 Stay lifted • Stay active
+🤖 @V1LEFarmBot
+━━━━━━━━━━━━━━━━━━`;
+
+  bot.sendMessage(ANNOUNCE_CHANNEL_ID, text, {
+    parse_mode: 'Markdown'
+  });
+
+  bot.sendMessage(id, '✅ Announcement published');
+});
+
 // ================= /uptime =================
 bot.onText(/\/uptime/, (msg) => {
   const chatId = msg.chat.id;
@@ -1292,6 +1322,34 @@ bot.onText(/\/removerole (@\w+)\s+(.+)/, (msg, match) => {
 
   bot.sendMessage(adminId, `✅ Removed role '${roleToRemove}' from @${username}`);
   bot.sendMessage(userId, `⚠️ The admin removed your role: ${roleToRemove}`);
+});
+
+// ================= Join =================
+bot.on('message', async (msg) => {
+  if (!msg.new_chat_members) return;
+  if (msg.chat.id.toString() !== ANNOUNCE_CHANNEL_ID) return;
+
+  for (const user of msg.new_chat_members) {
+    const caption =
+`👋 *Welcome to V1LE FARM*
+━━━━━━━━━━━━━━━━━━
+🌿 Premium drops
+🔥 Active community
+💎 Loyalty rewards
+
+👉 Start the bot: @v1leshopbot
+━━━━━━━━━━━━━━━━━━`;
+
+    const sent = await bot.sendAnimation(
+      ANNOUNCE_CHANNEL_ID,
+      WELCOME_GIF,
+      { caption, parse_mode: 'Markdown' }
+    );
+
+    setTimeout(() => {
+      bot.deleteMessage(ANNOUNCE_CHANNEL_ID, sent.message_id).catch(() => {});
+    }, WELCOME_DELETE_MS);
+  }
 });
 
 // ================= /rank COMMAND (with XP bars) =================
