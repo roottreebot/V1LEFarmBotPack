@@ -813,6 +813,32 @@ bot.onText(/\/activeusers/, (msg) => {
   });
 });
 
+// ================= /stock =================
+bot.onText(/^\/stock\s+(.+)/is, (msg, match) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const announcement = match[1];
+
+  const text =
+`━━━━━━━━━━━━━━━━━━
+❗️ *🥤🍃 NEW STOCK LIVE 📺*
+━━━━━━━━━━━━━━━━━━
+
+📜 STRAIN: ${announcement}
+
+━━━━━━━━━━━━━━━━━━
+🔥 Stay High • Stay Active
+🤖 *Order Here* @v1leshopbot
+━━━━━━━━━━━━━━━━━━`;
+
+  bot.sendMessage(ANNOUNCE_CHANNEL_ID, text, {
+    parse_mode: 'Markdown'
+  });
+
+  bot.sendMessage(id, '✅ Announcement published');
+});
+
 // ================= /publish =================
 bot.onText(/^\/publish\s+(.+)/is, (msg, match) => {
   const id = msg.from.id;
