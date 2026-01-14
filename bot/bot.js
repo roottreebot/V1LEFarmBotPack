@@ -822,14 +822,14 @@ bot.onText(/^\/publish\s+(.+)/is, (msg, match) => {
 
   const text =
 `━━━━━━━━━━━━━━━━━━
-🌿 *V1LE FARM ANNOUNCEMENT*
+❗️ *V1LE FARM ANNOUNCEMENT*
 ━━━━━━━━━━━━━━━━━━
 
 ${announcement}
 
 ━━━━━━━━━━━━━━━━━━
-🔥 Stay lifted • Stay active
-🤖 @V1LEFarmBot
+🔥 Stay High • Stay Active
+🤖 @v1leshopbot
 ━━━━━━━━━━━━━━━━━━`;
 
   bot.sendMessage(ANNOUNCE_CHANNEL_ID, text, {
@@ -1324,12 +1324,17 @@ bot.onText(/\/removerole (@\w+)\s+(.+)/, (msg, match) => {
   bot.sendMessage(userId, `⚠️ The admin removed your role: ${roleToRemove}`);
 });
 
-// ================= Join =================
-bot.on('message', async (msg) => {
-  if (!msg.new_chat_members) return;
-  if (msg.chat.id.toString() !== ANNOUNCE_CHANNEL_ID) return;
+// ================= Channel Join =================
+bot.on('chat_member', async (update) => {
+  if (update.chat.id.toString() !== ANNOUNCE_CHANNEL_ID.toString()) return;
 
-  for (const user of msg.new_chat_members) {
+  const oldStatus = update.old_chat_member.status;
+  const newStatus = update.new_chat_member.status;
+
+  if (
+    (oldStatus === 'left' || oldStatus === 'kicked') &&
+    newStatus === 'member'
+  ) {
     const caption =
 `👋 *Welcome to V1LE FARM*
 ━━━━━━━━━━━━━━━━━━
@@ -1921,6 +1926,10 @@ bot.onText(/\/adminhelp/, async (msg) => {
   const text = `
 🏆 *ADMIN COMMANDS*
 ———————————————————
+
+📆 *CHANNEL*
+———————————————————
+/publish >Text🛍💨< — Publish A Text To Channel
 
 👨‍💻 *EXPORT / IMPORT*
 ———————————————————
