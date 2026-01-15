@@ -287,8 +287,8 @@ function parseExpiry(str) {
 
 // ================= STOCK LABEL =================
 function stockLabel(product) {
-  if (!meta.stock) return '🟩 IN STOCK';
-  return meta.stock[product] ? '🟩 IN STOCK' : '🟥 OUT OF STOCK';
+  if (!meta.stock) return '🟩 *IN STOCK*';
+  return meta.stock[product] ? '🟩 *IN STOCK*' : '🟥 *OUT OF STOCK*';
 }
 
 // ================= SESSIONS =================
@@ -445,8 +445,10 @@ ${orders}
 ▏${storeStatus}
 ▏${dropoffStatus}
 ———————————————————
-▏🥤 *Sprite Popperz* - *Info* /spritepop ● ${stockLabel("Sprite Popperz")}
-▏🍃 *Killer Green Budz* - *Info* /killergb ● ${stockLabel("Killer Green Budz")}
+▏🥤 *Sprite Popperz* - *Info* /spritepop 
+▏● ${stockLabel("Sprite Popperz")}
+▏🍃 *Killer Green Budz* - *Info* /killergb
+▏● ${stockLabel("Killer Green Budz")}
 ———————————————————
 
 ${lb.text}`,
