@@ -96,6 +96,12 @@ function saveAll() {
   fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedback, null, 2));
 }
 
+// ================= STOCK STATE =================
+if (!meta.stock) meta.stock = {
+  "Sprite Popperz": true,
+  "Killer Green Budz": true
+};
+
 // ================= USERS =================
 function ensureUser(id, username) {
   if (!users[id]) {
@@ -280,6 +286,12 @@ function parseExpiry(str) {
   return null;
 }
 
+function stockLabel(product) {
+  return meta.stock[product]
+    ? '🟩 IN STOCK'
+    : '🟥 OUT OF STOCK';
+}
+
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -434,8 +446,8 @@ ${orders}
 ▏${storeStatus}
 ▏${dropoffStatus}
 ———————————————————
-▏🥤 *Sprite Popperz* - *Info* /spritepop
-▏🍃 *Killer Green Budz* - *Info* /killergb
+▏🥤 *Sprite Popperz* - *Info* /spritepop ● ${stockLabel("Sprite Popperz")}
+▏🍃 *Killer Green Budz* - *Info* /killergb ● ${stockLabel("Killer Green Budz")}
 ———————————————————
 
 ${lb.text}`,
@@ -863,6 +875,58 @@ ${announcement}
   });
 
   bot.sendMessage(id, '✅ Announcement published');
+});
+
+// ================= STOCK COMMANDS =================
+
+// Ensure stock object exists
+if (!meta.stock) {
+  meta.stock = {
+    "Sprite Popperz": true,
+    "Killer Green Budz": true
+  };
+}
+
+// /outstock <product>
+bot.onText(/^\/outstock\s+(.+)$/i, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const product = match[1].trim();
+
+  if (meta.stock[product] === undefined) {
+    return bot.sendMessage(id, `❌ Unknown product:\n${product}`);
+  }
+
+  meta.stock[product] = false;
+  saveAll();
+
+  showMainMenu(id);
+
+  bot.sendMessage(id, `🚫 *${product}* is now OUT OF STOCK`, {
+    parse_mode: 'Markdown'
+  });
+});
+
+// /instock <product>
+bot.onText(/^\/instock\s+(.+)$/i, (msg, match) => {
+  const id = msg.chat.id;
+  if (!ADMIN_IDS.includes(id)) return;
+
+  const product = match[1].trim();
+
+  if (meta.stock[product] === undefined) {
+    return bot.sendMessage(id, `❌ Unknown product:\n${product}`);
+  }
+
+  meta.stock[product] = true;
+  saveAll();
+
+  showMainMenu(id);
+
+  bot.sendMessage(id, `✅ *${product}* is now IN STOCK`, {
+    parse_mode: 'Markdown'
+  });
 });
 
 // ================= /uptime =================
