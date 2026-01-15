@@ -524,6 +524,14 @@ bot.on('callback_query', async q => {
   const s = sessions[id] || (sessions[id] = {});
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
+    // Block ordering if product is out of stock
+  if (q.data === 'product_Sprite Popperz' && !meta.stock["Sprite Popperz"]) {
+    return bot.answerCallbackQuery(q.id, { text: "🚫 This product is OUT OF STOCK", show_alert: true });
+  }
+  if (q.data === 'product_Killer Green Budz' && !meta.stock["Killer Green Budz"]) {
+    return bot.answerCallbackQuery(q.id, { text: "🚫 This product is OUT OF STOCK", show_alert: true });
+  }
+  
   // ================= NAVIGATION =================
   if (q.data === 'reload') {
     s.step = null;
@@ -878,12 +886,7 @@ ${announcement}
   bot.sendMessage(id, '✅ Announcement published');
 });
 
-// ================= STOCK COMMANDS =================
-meta.stock = meta.stock || {};
-meta.stock["Sprite Popperz"] ??= true;
-meta.stock["Killer Green Budz"] ??= true;
-
-// /outstock command
+// ================= /outstock =================
 bot.onText(/^\/outstock\s+(.+)$/i, async (msg, match) => {
   const id = msg.from.id;
   if (!ADMIN_IDS.includes(id)) return;
@@ -895,14 +898,13 @@ bot.onText(/^\/outstock\s+(.+)$/i, async (msg, match) => {
   meta.stock[product] = false;
   saveAll();
 
-  // update the inline menu buttons
-  updateProductButtons();
-
   await bot.sendMessage(id, `🚫 *${product}* is now OUT OF STOCK`, { parse_mode: 'Markdown' });
-  if (msg.chat.type === 'private') showMainMenu(id);
+
+  // refresh menu immediately
+  showMainMenu(id);
 });
 
-// /instock command
+// ================= /instock =================
 bot.onText(/^\/instock\s+(.+)$/i, async (msg, match) => {
   const id = msg.from.id;
   if (!ADMIN_IDS.includes(id)) return;
@@ -914,27 +916,11 @@ bot.onText(/^\/instock\s+(.+)$/i, async (msg, match) => {
   meta.stock[product] = true;
   saveAll();
 
-  // update the inline menu buttons
-  updateProductButtons();
-
   await bot.sendMessage(id, `✅ *${product}* is now IN STOCK`, { parse_mode: 'Markdown' });
-  if (msg.chat.type === 'private') showMainMenu(id);
-});
 
-// ================= INLINE BUTTON UPDATER =================
-function updateProductButtons() {
-  // Loop through users who have an active menu open if you track sessions
-  // Or just refresh global menu buttons next time it's opened
-  // Here is an example for your main menu kb:
-  kb = [
-    [
-      { text: `🥤 Sprite Popperz ${meta.stock["Sprite Popperz"] ? '' : '🟥 *OUT OF STOCK*'}`, callback_data: 'product_Sprite Popperz' }
-    ],
-    [
-      { text: `🍃 Killer Green Budz ${meta.stock["Killer Green Budz"] ? '' : '🟥 *OUT OF STOCK*'}`, callback_data: 'product_Killer Green Budz' }
-    ]
-  ];
-}
+  // refresh menu immediately
+  showMainMenu(id);
+});
 
 // ================= /uptime =================
 bot.onText(/\/uptime/, (msg) => {
