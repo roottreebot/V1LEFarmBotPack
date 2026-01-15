@@ -880,54 +880,53 @@ ${announcement}
 
 // ================= STOCK COMMANDS =================
 
-// Ensure stock object exists
-if (!meta.stock) {
-  meta.stock = {
-    "Sprite Popperz": true,
-    "Killer Green Budz": true
-  };
-}
+// Make sure stock defaults exist
+meta.stock = meta.stock || {};
+if (meta.stock["Sprite Popperz"] === undefined) meta.stock["Sprite Popperz"] = true;
+if (meta.stock["Killer Green Budz"] === undefined) meta.stock["Killer Green Budz"] = true;
 
 // /outstock <product>
 bot.onText(/^\/outstock\s+(.+)$/i, (msg, match) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
+  const adminId = msg.from.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
 
-  const product = match[1].trim();
-
-  if (meta.stock[product] === undefined) {
-    return bot.sendMessage(id, `❌ Unknown product:\n${product}`);
+  const raw = match[1].trim();
+  const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
+  if (!product) {
+    return bot.sendMessage(adminId, `❌ Unknown product: ${raw}`);
   }
 
   meta.stock[product] = false;
   saveAll();
 
-  showMainMenu(id);
-
-  bot.sendMessage(id, `🚫 *${product}* is now OUT OF STOCK`, {
-    parse_mode: 'Markdown'
+  bot.sendMessage(adminId, `🚫 *${product}* is now OUT OF STOCK`, {
+    parse_mode: "Markdown"
   });
+
+  // refresh main menu if in private
+  if (msg.chat.type === "private") showMainMenu(adminId);
 });
 
 // /instock <product>
 bot.onText(/^\/instock\s+(.+)$/i, (msg, match) => {
-  const id = msg.chat.id;
-  if (!ADMIN_IDS.includes(id)) return;
+  const adminId = msg.from.id;
+  if (!ADMIN_IDS.includes(adminId)) return;
 
-  const product = match[1].trim();
-
-  if (meta.stock[product] === undefined) {
-    return bot.sendMessage(id, `❌ Unknown product:\n${product}`);
+  const raw = match[1].trim();
+  const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
+  if (!product) {
+    return bot.sendMessage(adminId, `❌ Unknown product: ${raw}`);
   }
 
   meta.stock[product] = true;
   saveAll();
 
-  showMainMenu(id);
-
-  bot.sendMessage(id, `✅ *${product}* is now IN STOCK`, {
-    parse_mode: 'Markdown'
+  bot.sendMessage(adminId, `✅ *${product}* is now IN STOCK`, {
+    parse_mode: "Markdown"
   });
+
+  // refresh main menu if in private
+  if (msg.chat.type === "private") showMainMenu(adminId);
 });
 
 // ================= /uptime =================
