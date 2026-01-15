@@ -879,55 +879,62 @@ ${announcement}
 });
 
 // ================= STOCK COMMANDS =================
-
-// Make sure stock defaults exist
 meta.stock = meta.stock || {};
-if (meta.stock["Sprite Popperz"] === undefined) meta.stock["Sprite Popperz"] = true;
-if (meta.stock["Killer Green Budz"] === undefined) meta.stock["Killer Green Budz"] = true;
+meta.stock["Sprite Popperz"] ??= true;
+meta.stock["Killer Green Budz"] ??= true;
 
-// /outstock <product>
-bot.onText(/^\/outstock\s+(.+)$/i, (msg, match) => {
-  const adminId = msg.from.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
+// /outstock command
+bot.onText(/^\/outstock\s+(.+)$/i, async (msg, match) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
   const raw = match[1].trim();
   const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
-  if (!product) {
-    return bot.sendMessage(adminId, `❌ Unknown product: ${raw}`);
-  }
+  if (!product) return bot.sendMessage(id, `❌ Unknown product: ${raw}`);
 
   meta.stock[product] = false;
   saveAll();
 
-  bot.sendMessage(adminId, `🚫 *${product}* is now OUT OF STOCK`, {
-    parse_mode: "Markdown"
-  });
+  // update the inline menu buttons
+  updateProductButtons();
 
-  // refresh main menu if in private
-  if (msg.chat.type === "private") showMainMenu(adminId);
+  await bot.sendMessage(id, `🚫 *${product}* is now OUT OF STOCK`, { parse_mode: 'Markdown' });
+  if (msg.chat.type === 'private') showMainMenu(id);
 });
 
-// /instock <product>
-bot.onText(/^\/instock\s+(.+)$/i, (msg, match) => {
-  const adminId = msg.from.id;
-  if (!ADMIN_IDS.includes(adminId)) return;
+// /instock command
+bot.onText(/^\/instock\s+(.+)$/i, async (msg, match) => {
+  const id = msg.from.id;
+  if (!ADMIN_IDS.includes(id)) return;
 
   const raw = match[1].trim();
   const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
-  if (!product) {
-    return bot.sendMessage(adminId, `❌ Unknown product: ${raw}`);
-  }
+  if (!product) return bot.sendMessage(id, `❌ Unknown product: ${raw}`);
 
   meta.stock[product] = true;
   saveAll();
 
-  bot.sendMessage(adminId, `✅ *${product}* is now IN STOCK`, {
-    parse_mode: "Markdown"
-  });
+  // update the inline menu buttons
+  updateProductButtons();
 
-  // refresh main menu if in private
-  if (msg.chat.type === "private") showMainMenu(adminId);
+  await bot.sendMessage(id, `✅ *${product}* is now IN STOCK`, { parse_mode: 'Markdown' });
+  if (msg.chat.type === 'private') showMainMenu(id);
 });
+
+// ================= INLINE BUTTON UPDATER =================
+function updateProductButtons() {
+  // Loop through users who have an active menu open if you track sessions
+  // Or just refresh global menu buttons next time it's opened
+  // Here is an example for your main menu kb:
+  kb = [
+    [
+      { text: `🥤 Sprite Popperz ${meta.stock["Sprite Popperz"] ? '' : '🟥 *OUT OF STOCK*'}`, callback_data: 'product_Sprite Popperz' }
+    ],
+    [
+      { text: `🍃 Killer Green Budz ${meta.stock["Killer Green Budz"] ? '' : '🟥 *OUT OF STOCK*'}`, callback_data: 'product_Killer Green Budz' }
+    ]
+  ];
+}
 
 // ================= /uptime =================
 bot.onText(/\/uptime/, (msg) => {
