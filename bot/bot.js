@@ -96,11 +96,6 @@ function saveAll() {
   fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedback, null, 2));
 }
 
-// ================= STOCK STATE =================
-meta.stock = meta.stock || {};
-meta.stock["Sprite Popperz"] ??= true;
-meta.stock["Killer Green Budz"] ??= true;
-
 // ================= USERS =================
 function ensureUser(id, username) {
   if (!users[id]) {
@@ -285,12 +280,6 @@ function parseExpiry(str) {
   return null;
 }
 
-// ================= STOCK LABEL =================
-function stockLabel(product) {
-  if (!meta.stock) return '🟩 *IN STOCK*';
-  return meta.stock[product] ? '🟩 *IN STOCK*' : '🟥 *OUT OF STOCK*';
-}
-
 // ================= SESSIONS =================
 const sessions = {};
 
@@ -445,10 +434,8 @@ ${orders}
 ▏${storeStatus}
 ▏${dropoffStatus}
 ———————————————————
-▏🥤 *Sprite Popperz* - *Info* /spritepop 
-▏● ${stockLabel("Sprite Popperz")}
+▏🥤 *Sprite Popperz* - *Info* /spritepop
 ▏🍃 *Killer Green Budz* - *Info* /killergb
-▏● ${stockLabel("Killer Green Budz")}
 ———————————————————
 
 ${lb.text}`,
@@ -524,14 +511,6 @@ bot.on('callback_query', async q => {
   const s = sessions[id] || (sessions[id] = {});
   await bot.answerCallbackQuery(q.id).catch(() => {});
 
-    // Block ordering if product is out of stock
-  if (q.data === 'product_Sprite Popperz' && !meta.stock["Sprite Popperz"]) {
-    return bot.answerCallbackQuery(q.id, { text: "🚫 This product is OUT OF STOCK", show_alert: true });
-  }
-  if (q.data === 'product_Killer Green Budz' && !meta.stock["Killer Green Budz"]) {
-    return bot.answerCallbackQuery(q.id, { text: "🚫 This product is OUT OF STOCK", show_alert: true });
-  }
-  
   // ================= NAVIGATION =================
   if (q.data === 'reload') {
     s.step = null;
@@ -884,42 +863,6 @@ ${announcement}
   });
 
   bot.sendMessage(id, '✅ Announcement published');
-});
-
-// ================= /outstock =================
-bot.onText(/^\/outstock\s+(.+)$/i, async (msg, match) => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(id)) return;
-
-  const raw = match[1].trim();
-  const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
-  if (!product) return bot.sendMessage(id, `❌ Unknown product: ${raw}`);
-
-  meta.stock[product] = false;
-  saveAll();
-
-  await bot.sendMessage(id, `🚫 *${product}* is now OUT OF STOCK`, { parse_mode: 'Markdown' });
-
-  // refresh menu immediately
-  showMainMenu(id);
-});
-
-// ================= /instock =================
-bot.onText(/^\/instock\s+(.+)$/i, async (msg, match) => {
-  const id = msg.from.id;
-  if (!ADMIN_IDS.includes(id)) return;
-
-  const raw = match[1].trim();
-  const product = Object.keys(meta.stock).find(p => p.toLowerCase() === raw.toLowerCase());
-  if (!product) return bot.sendMessage(id, `❌ Unknown product: ${raw}`);
-
-  meta.stock[product] = true;
-  saveAll();
-
-  await bot.sendMessage(id, `✅ *${product}* is now IN STOCK`, { parse_mode: 'Markdown' });
-
-  // refresh menu immediately
-  showMainMenu(id);
 });
 
 // ================= /uptime =================
