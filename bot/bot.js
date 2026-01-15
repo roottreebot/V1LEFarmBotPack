@@ -97,10 +97,9 @@ function saveAll() {
 }
 
 // ================= STOCK STATE =================
-if (!meta.stock) meta.stock = {
-  "Sprite Popperz": true,
-  "Killer Green Budz": true
-};
+meta.stock = meta.stock || {};
+meta.stock["Sprite Popperz"] ??= true;
+meta.stock["Killer Green Budz"] ??= true;
 
 // ================= USERS =================
 function ensureUser(id, username) {
@@ -286,10 +285,10 @@ function parseExpiry(str) {
   return null;
 }
 
+// ================= STOCK LABEL =================
 function stockLabel(product) {
-  return meta.stock[product]
-    ? '🟩 IN STOCK'
-    : '🟥 OUT OF STOCK';
+  if (!meta.stock) return '🟩 IN STOCK';
+  return meta.stock[product] ? '🟩 IN STOCK' : '🟥 OUT OF STOCK';
 }
 
 // ================= SESSIONS =================
