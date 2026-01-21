@@ -17,8 +17,12 @@ if (!TOKEN || !ADMIN_IDS.length) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const ANNOUNCE_CHANNEL_ID = '-1002927619838';
-const WELCOME_GIF = 'https://media.giphy.com/media/3o6ZtaO9BZHcOjmErm/giphy.gif';
-const WELCOME_DELETE_MS = 10000;
+
+// ================= PRODUCTS STOCK =================
+meta.products = meta.products || {
+  Sprite_Popperz: { inStock: true },
+  Killer_Green_Budz: { inStock: true }
+};
 
 // ================= RANK ROLES =================
 const levelRanks = [
@@ -382,31 +386,31 @@ async function showMainMenu(id, lbPage = 0) {
 
   const lb = getLeaderboard(lbPage);
 
-  // ================= INLINE BUTTONS WITH STOCK =================
-  let kb = [
-    [
-      {
-        text: meta.products?.Sprite_Popperz?.inStock
-          ? `🥤 Sprite Popperz`
-          : `🥤 Sprite Popperz 🔴`,
-        callback_data: meta.products?.Sprite_Popperz?.inStock
-          ? 'product_Sprite Popperz'
-          : 'stock_locked'
-      }
-    ],
-    [
-      {
-        text: meta.products?.Killer_Green_Budz?.inStock
-          ? `🍃 Killer Green Budz`
-          : `🍃 Killer Green Budz 🔴`,
-        callback_data: meta.products?.Killer_Green_Budz?.inStock
-          ? 'product_Killer Green Budz'
-          : 'stock_locked'
-      }
-    ],
-    lb.buttons[0]
-  ];
-
+// ================= INLINE BUTTONS WITH STOCK =================
+let kb = [
+  [
+    {
+      text: meta.products.Sprite_Popperz.inStock
+        ? `🥤 Sprite Popperz`
+        : `🥤 Sprite Popperz 🔴`,
+      callback_data: meta.products.Sprite_Popperz.inStock
+        ? 'product_Sprite Popperz'
+        : 'stock_locked'
+    }
+  ],
+  [
+    {
+      text: meta.products.Killer_Green_Budz.inStock
+        ? `🍃 Killer Green Budz`
+        : `🍃 Killer Green Budz 🔴`,
+      callback_data: meta.products.Killer_Green_Budz.inStock
+        ? 'product_Killer Green Budz'
+        : 'stock_locked'
+    }
+  ],
+  lb.buttons[0] // keep your leaderboard buttons
+];
+  
   // ================= ADMIN STORE BUTTON =================
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
@@ -417,10 +421,6 @@ async function showMainMenu(id, lbPage = 0) {
 
   meta.inviteTokens = meta.inviteTokens || [];
 
-  meta.products = meta.products || {
-  Sprite_Popperz: { inStock: true },
-  Killer_Green_Budz: { inStock: true }
-};
 
   // ================= STORE STATUS =================
   if (!meta.dropoff) meta.dropoff = false;
@@ -531,16 +531,36 @@ bot.on("message", async (msg) => {
 bot.on('callback_query', (q) => {
   const id = q.from.id;
 
+  // Block clicks on out-of-stock products
   if (q.data === 'stock_locked') {
-    bot.answerCallbackQuery(q.id, { text: '❌ This product is out of stock.', show_alert: true });
+    bot.answerCallbackQuery(q.id, {
+      text: '❌ This product is out of stock.',
+      show_alert: true
+    });
     return;
   }
 
-  // Existing product handlers
+  // Product info buttons
   if (q.data.startsWith('product_')) {
     const productName = q.data.replace('product_', '');
     bot.answerCallbackQuery(q.id, { text: `${productName} Info` });
     bot.sendMessage(id, `📝 *${productName}* info goes here`, { parse_mode: 'Markdown' });
+  }
+
+  // Existing admin store buttons
+  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = false;
+    saveAll();
+    // optional: alert users or refresh menus
+    refreshAllMenus();
+    bot.answerCallbackQuery(q.id, { text: 'Store closed' });
+  }
+
+  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
+    meta.storeOpen = true;
+    saveAll();
+    refreshAllMenus();
+    bot.answerCallbackQuery(q.id, { text: 'Store opened' });
   }
 });
 
@@ -898,40 +918,6 @@ ${announcement}
   bot.sendMessage(id, '✅ Announcement published');
 });
 
-// Sprite Popperz
-bot.onText(/\/outsp/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Sprite_Popperz.inStock = false;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🔴 Sprite Popperz is now OUT OF STOCK.');
-});
-
-bot.onText(/\/insp/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Sprite_Popperz.inStock = true;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🟢 Sprite Popperz is now IN STOCK.');
-});
-
-// Killer Green Budz
-bot.onText(/\/outkgb/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Killer_Green_Budz.inStock = false;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🔴 Killer Green Budz is now OUT OF STOCK.');
-});
-
-bot.onText(/\/inkgb/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Killer_Green_Budz.inStock = true;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🟢 Killer Green Budz is now IN STOCK.');
-});
-
 // Helper to refresh all menus
 function refreshAllMenus() {
   for (const uid in sessions) {
@@ -972,13 +958,6 @@ bot.onText(/\/inkgb/i, (msg) => {
   refreshAllMenus();
   bot.sendMessage(msg.chat.id, '🟢 Killer Green Budz is now IN STOCK.');
 });
-
-// Helper to refresh all menus
-function refreshAllMenus() {
-  for (const uid in sessions) {
-    if (sessions[uid].mainMsgId) showMainMenu(Number(uid));
-  }
-}
 
 // ================= /uptime =================
 bot.onText(/\/uptime/, (msg) => {
