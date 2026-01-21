@@ -11,11 +11,12 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
    pm2 logs v1lefarmbot
 
 ## // FILES
+
+## /bot
 bot.js — main bot script
 
-## 1
+## scripts
 install_bot.sh — installer
-
 bootstrap.sh — initial bootstrap
 
 ## 2
