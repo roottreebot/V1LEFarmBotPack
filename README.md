@@ -10,13 +10,15 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 3. Check logs:
    pm2 logs v1lefarmbot
 
-## Files
+## // FILES
 bot.js — main bot script
 
+## 1
 install_bot.sh — installer
 
 bootstrap.sh — initial bootstrap
 
+## 2
 package.json — Node.js dependencies
 
 user.json - users
