@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.0.4 • build 2) ===
+// === ROOTTREE BOT (FINAL: v2.1.2 • build 1) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -17,8 +17,6 @@ if (!TOKEN || !ADMIN_IDS.length) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const ANNOUNCE_CHANNEL_ID = '-1002927619838';
-const WELCOME_GIF = 'https://media.giphy.com/media/3o6ZtaO9BZHcOjmErm/giphy.gif';
-const WELCOME_DELETE_MS = 10000;
 
 // ================= RANK ROLES =================
 const levelRanks = [
@@ -327,7 +325,7 @@ text += `———————————————————\n`;
     text += `▏#${page * lbSize + i + 1} ● *${name}* Lv *${u.level}* ● XP *${u.weeklyXp}*\n`;
   });
 text += `———————————————————\n`;
-text += `v2.0.4 • build 2\n`;
+text += `v2.1.2 • build 1\n`;
   const buttons = [[
     { text: '⬅ Prev', callback_data: `lb_${page - 1}` },
     { text: '➡ Next', callback_data: `lb_${page + 1}` }
@@ -452,7 +450,7 @@ bot.onText(/\/start/, async (msg) => {
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
     sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 Access Denied* Enter *Token:");
+    return bot.sendMessage(id, "🔑 Access Denied Enter Token:");
   }
 
   return showMainMenu(id);
@@ -1350,39 +1348,6 @@ bot.onText(/\/removerole (@\w+)\s+(.+)/, (msg, match) => {
   bot.sendMessage(userId, `⚠️ The admin removed your role: ${roleToRemove}`);
 });
 
-// ================= Channel Join =================
-bot.on('chat_member', async (update) => {
-  if (update.chat.id.toString() !== ANNOUNCE_CHANNEL_ID.toString()) return;
-
-  const oldStatus = update.old_chat_member.status;
-  const newStatus = update.new_chat_member.status;
-
-  if (
-    (oldStatus === 'left' || oldStatus === 'kicked') &&
-    newStatus === 'member'
-  ) {
-    const caption =
-`👋 *Welcome to V1LE FARM*
-━━━━━━━━━━━━━━━━━━
-🌿 Premium drops
-🔥 Active community
-💎 Loyalty rewards
-
-👉 Start the bot: @v1leshopbot
-━━━━━━━━━━━━━━━━━━`;
-
-    const sent = await bot.sendAnimation(
-      ANNOUNCE_CHANNEL_ID,
-      WELCOME_GIF,
-      { caption, parse_mode: 'Markdown' }
-    );
-
-    setTimeout(() => {
-      bot.deleteMessage(ANNOUNCE_CHANNEL_ID, sent.message_id).catch(() => {});
-    }, WELCOME_DELETE_MS);
-  }
-});
-
 // ================= /rank COMMAND (with XP bars) =================
 bot.onText(/\/rank(?:\s+@?(\w+))?/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -1828,31 +1793,6 @@ bot.onText(/\/buy (.+)/i, (msg, match) => {
     `✅ *Purchase successful!*\n\nYou bought *${roleName}* for *${price} XP*.\nRemaining XP: *${u.xp}*`,
     { parse_mode: 'Markdown' }
   );
-});
-
-// ================= USER /CLEARBOT =================
-bot.onText(/\/clearbot/, async (msg) => {
-  const id = msg.chat.id;
-
-  if (!sessions[id]) sessions[id] = {};
-  if (!sessions[id].botMessages) sessions[id].botMessages = [];
-
-  let deleted = 0;
-
-  for (const mid of sessions[id].botMessages) {
-    try {
-      await bot.deleteMessage(id, mid);
-      deleted++;
-    } catch (e) {
-      // message too old or already deleted — ignore
-    }
-  }
-
-  // reset tracked messages
-  sessions[id].botMessages = [];
-  sessions[id].mainMsgId = null;
-
-  bot.sendMessage(id, `🧹 Cleared ${deleted} bot message(s).`);
 });
 
 // ================= HELPER FUNCTION =================
@@ -2482,47 +2422,6 @@ bot.on('callback_query', async (q) => {
     bot.deleteMessage(chatId, q.message.message_id).catch(() => {});
     showBanlist(chatId, page);
   }
-});
-
-// ================= INVALIDATE USER BY @USERNAME =================
-bot.onText(/\/invaliduser (@\w+)/i, (msg, match) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-
-  const username = match[1].replace('@', '').toLowerCase();
-
-  // Find user ID by username
-  const targetId = Object.keys(users).find(uid => {
-    return users[uid]?.username?.toLowerCase() === username;
-  });
-
-  if (!targetId) {
-    bot.sendMessage(
-      msg.chat.id,
-      `❌ User @${username} not found or has never used the bot.`
-    );
-    return;
-  }
-
-  // Invalidate user
-  users[targetId].inviteToken = null;
-
-  sessions[targetId] = sessions[targetId] || {};
-  sessions[targetId].awaitingToken = true;
-  sessions[targetId].mainMsgId = null;
-
-  saveAll();
-
-  bot.sendMessage(
-    msg.chat.id,
-    `✅ @${username} has been invalidated and must re-enter an invite token.`
-  );
-
-  // Notify the user
-  bot.sendMessage(
-    Number(targetId),
-    '❌ *Your access has been revoked.*\n\n🔑 Please enter a **new invite token** to continue.',
-    { parse_mode: 'Markdown' }
-  );
 });
 
 // ================= /feedback  =================
