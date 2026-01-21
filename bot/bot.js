@@ -2484,6 +2484,47 @@ bot.on('callback_query', async (q) => {
   }
 });
 
+// ================= INVALIDATE USER BY @USERNAME =================
+bot.onText(/\/invaliduser (@\w+)/i, (msg, match) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+
+  const username = match[1].replace('@', '').toLowerCase();
+
+  // Find user ID by username
+  const targetId = Object.keys(users).find(uid => {
+    return users[uid]?.username?.toLowerCase() === username;
+  });
+
+  if (!targetId) {
+    bot.sendMessage(
+      msg.chat.id,
+      `❌ User @${username} not found or has never used the bot.`
+    );
+    return;
+  }
+
+  // Invalidate user
+  users[targetId].inviteToken = null;
+
+  sessions[targetId] = sessions[targetId] || {};
+  sessions[targetId].awaitingToken = true;
+  sessions[targetId].mainMsgId = null;
+
+  saveAll();
+
+  bot.sendMessage(
+    msg.chat.id,
+    `✅ @${username} has been invalidated and must re-enter an invite token.`
+  );
+
+  // Notify the user
+  bot.sendMessage(
+    Number(targetId),
+    '❌ *Your access has been revoked.*\n\n🔑 Please enter a **new invite token** to continue.',
+    { parse_mode: 'Markdown' }
+  );
+});
+
 // ================= /feedback  =================
 bot.onText(/^\/feedback(?:\s+([\s\S]+))?$/i, (msg, match) => {
   const id = msg.chat.id;
