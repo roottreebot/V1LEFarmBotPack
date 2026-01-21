@@ -452,7 +452,7 @@ bot.onText(/\/start/, async (msg) => {
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
     sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 *Access Denied* Enter *Token*:");
+    return bot.sendMessage(id, "🔑 Access Denied* Enter *Token:");
   }
 
   return showMainMenu(id);
@@ -474,19 +474,19 @@ bot.on("message", async (msg) => {
   const data = meta.tokens[token];
 
   if (!data) {
-    return bot.sendMessage(id, "❌ *Denied Invalid Token.*");
+    return bot.sendMessage(id, "❌ Denied Invalid Token.");
   }
 
   if (data.expiresAt && Date.now() > data.expiresAt) {
     delete meta.tokens[token];
     saveAll();
-    return bot.sendMessage(id, "❌ *Denied Token Expired.*");
+    return bot.sendMessage(id, "❌ Denied Token Expired.");
   }
 
   if (data.usesLeft <= 0) {
     delete meta.tokens[token];
     saveAll();
-    return bot.sendMessage(id, "❌ *Token already used.*");
+    return bot.sendMessage(id, "❌ Token already used.");
   }
 
   // ✅ ACCEPT TOKEN
@@ -500,7 +500,7 @@ bot.on("message", async (msg) => {
 
   saveAll();
 
-  await bot.sendMessage(id, "✅ *Access Granted.*");
+  await bot.sendMessage(id, "✅ Access Granted.");
   return showMainMenu(id);
 });
 
@@ -578,7 +578,7 @@ bot.on('callback_query', async q => {
 *${s.product}*
 
 💲 *Price per gram:* *$${price}*
-*Click Either One Once!(*Example* 💵 *$20 Or 20* ⚖️ *2g Or 2*) Type Cash Amount Or Grams*
+*Click Either One Once! (*Example* 💵 *$20 Or 20* ⚖️ *2g Or 2*) Type Cash Amount Or Grams*
 
 ❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
@@ -603,7 +603,7 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
 🪴 *ORDER SUMMARY*
 ———————————————————
 
-🛍 *YOU CHOSEN* *${s.product}*
+🛍 *YOU HAVE CHOSEN* *${s.product}*
 
 💲 *PRICE PER GRAM:* *$${price}*
 
@@ -654,7 +654,7 @@ bot.on('message', async msg => {
 🪴 *ORDER SUMMARY*
 ———————————————————
 
-🛍 *YOU CHOSE* *${s.product}*
+🛍 *YOU HAVE CHOSE* *${s.product}*
 
 ⚖️ *AMOUNT*: *${s.grams}g*
 💲 *TOTAL*: *$${s.cash}*
