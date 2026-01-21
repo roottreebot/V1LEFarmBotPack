@@ -17,12 +17,8 @@ if (!TOKEN || !ADMIN_IDS.length) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 const ANNOUNCE_CHANNEL_ID = '-1002927619838';
-
-// ================= PRODUCTS STOCK =================
-meta.products = meta.products || {
-  Sprite_Popperz: { inStock: true },
-  Killer_Green_Budz: { inStock: true }
-};
+const WELCOME_GIF = 'https://media.giphy.com/media/3o6ZtaO9BZHcOjmErm/giphy.gif';
+const WELCOME_DELETE_MS = 10000;
 
 // ================= RANK ROLES =================
 const levelRanks = [
@@ -371,47 +367,32 @@ async function showMainMenu(id, lbPage = 0) {
   const highestRole = getHighestRole(u);
 
   const dropoffStatus = meta.dropoff
-    ? '🚗 *DROP OFF:* 🟢 ON'
-    : '🚗 *DROP OFF:* 🔴 OFF';
-
+  ? '🚗 *DROP OFF:* 🟢 ON'
+  : '🚗 *DROP OFF:* 🔴 OFF';
+  
   const orders = u.orders.length
-    ? u.orders.map(o => {
-        const isBulk = parseFloat(o.cash) >= 400;
-        const statusIcon = o.status === '✅ Accepted' ? '🟢' : '⚪';
-        return isBulk
-          ? `▏${statusIcon} *${o.product}* — 🧱 *Bulk Order*`
-          : `▏${statusIcon} *${o.product}* — ${o.grams}g — $${o.cash}`;
-      }).join('\n')
-    : '_No orders yet_';
+  ? u.orders.map(o => {
+      const isBulk = parseFloat(o.cash) >= 400;
+      const statusIcon = o.status === '✅ Accepted' ? '🟢' : '⚪';
+
+      return isBulk
+        ? `▏${statusIcon} *${o.product}* — 🧱 *Bulk Order*`
+        : `▏${statusIcon} *${o.product}* — ${o.grams}g — $${o.cash}`;
+    }).join('\n')
+  : '_No orders yet_';
 
   const lb = getLeaderboard(lbPage);
 
-// ================= INLINE BUTTONS WITH STOCK =================
-let kb = [
+  let kb = [
   [
-    {
-      text: meta.products.Sprite_Popperz.inStock
-        ? `🥤 Sprite Popperz`
-        : `🥤 Sprite Popperz 🔴`,
-      callback_data: meta.products.Sprite_Popperz.inStock
-        ? 'product_Sprite Popperz'
-        : 'stock_locked'
-    }
+    { text: `🥤 Sprite Popperz`, callback_data: 'product_Sprite Popperz' }
   ],
   [
-    {
-      text: meta.products.Killer_Green_Budz.inStock
-        ? `🍃 Killer Green Budz`
-        : `🍃 Killer Green Budz 🔴`,
-      callback_data: meta.products.Killer_Green_Budz.inStock
-        ? 'product_Killer Green Budz'
-        : 'stock_locked'
-    }
+    { text: `🍃 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
   ],
-  lb.buttons[0] // keep your leaderboard buttons
+  lb.buttons[0]
 ];
-  
-  // ================= ADMIN STORE BUTTON =================
+
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
       ? { text: '🔴 Close: Store', callback_data: 'store_close' }
@@ -420,21 +401,17 @@ let kb = [
   }
 
   meta.inviteTokens = meta.inviteTokens || [];
-
-
-  // ================= STORE STATUS =================
-  if (!meta.dropoff) meta.dropoff = false;
-
-  const storeStatus = meta.storeOpen
-    ? '😙💨 *STORE: 🟢 OPEN*'
-    : '😙❌ *STORE: 🔴 CLOSED*';
+  
+  // ================= DROP-OFF STATUS =================
+if (!meta.dropoff) meta.dropoff = false;
+  
+  const storeStatus = meta.storeOpen ? '😙💨 *STORE: 🟩 OPEN*' : '😙❌️ *STORE: 🟥 CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
-  // ================= SEND OR EDIT MENU =================
-  await sendOrEdit(
-    id,
-    `
+await sendOrEdit(
+  id,
+`
 ———————————————————
 ▏📊 *STATS* ● /userprofile
 ———————————————————
@@ -475,7 +452,15 @@ bot.onText(/\/start/, async (msg) => {
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
     sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, "🔑 Enter your invite token:");
+    return bot.sendMessage(id, 
+                           
+                           "———————————————————"
+                           "🔑 *Access Denied* Enter *Token*:"
+                          
+                           "———————————————————"
+                           "*ᴼʷⁿᵉᵈ ᴮʸ ⱽᶠ*"
+    
+    );
   }
 
   return showMainMenu(id);
@@ -497,19 +482,19 @@ bot.on("message", async (msg) => {
   const data = meta.tokens[token];
 
   if (!data) {
-    return bot.sendMessage(id, "❌ Invalid token.");
+    return bot.sendMessage(id, "❌ *Denied Invalid Token.*");
   }
 
   if (data.expiresAt && Date.now() > data.expiresAt) {
     delete meta.tokens[token];
     saveAll();
-    return bot.sendMessage(id, "❌ Token expired.");
+    return bot.sendMessage(id, "❌ *Denied Token Expired.*");
   }
 
   if (data.usesLeft <= 0) {
     delete meta.tokens[token];
     saveAll();
-    return bot.sendMessage(id, "❌ Token already used.");
+    return bot.sendMessage(id, "❌ *Token already used.*");
   }
 
   // ✅ ACCEPT TOKEN
@@ -523,46 +508,19 @@ bot.on("message", async (msg) => {
 
   saveAll();
 
-  await bot.sendMessage(id, "✅ Access granted.");
+  await bot.sendMessage(id, "✅ *Access Granted.*"
+                            "*Welcome To Our Shop*"
+                       
+);
   return showMainMenu(id);
 });
 
 // ================= CALLBACKS =================
-bot.on('callback_query', (q) => {
-  const id = q.from.id;
-
-  // Block clicks on out-of-stock products
-  if (q.data === 'stock_locked') {
-    bot.answerCallbackQuery(q.id, {
-      text: '❌ This product is out of stock.',
-      show_alert: true
-    });
-    return;
-  }
-
-  // Product info buttons
-  if (q.data.startsWith('product_')) {
-    const productName = q.data.replace('product_', '');
-    bot.answerCallbackQuery(q.id, { text: `${productName} Info` });
-    bot.sendMessage(id, `📝 *${productName}* info goes here`, { parse_mode: 'Markdown' });
-  }
-
-  // Existing admin store buttons
-  if (q.data === 'store_close' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = false;
-    saveAll();
-    // optional: alert users or refresh menus
-    refreshAllMenus();
-    bot.answerCallbackQuery(q.id, { text: 'Store closed' });
-  }
-
-  if (q.data === 'store_open' && ADMIN_IDS.includes(id)) {
-    meta.storeOpen = true;
-    saveAll();
-    refreshAllMenus();
-    bot.answerCallbackQuery(q.id, { text: 'Store opened' });
-  }
-});
+bot.on('callback_query', async q => {
+  const id = q.message.chat.id;
+  ensureUser(id, q.from.username);
+  const s = sessions[id] || (sessions[id] = {});
+  await bot.answerCallbackQuery(q.id).catch(() => {});
 
   // ================= NAVIGATION =================
   if (q.data === 'reload') {
@@ -630,8 +588,8 @@ bot.on('callback_query', (q) => {
 `🪴 *YOU HAVE CHOSEN*
 *${s.product}*
 
-💲 Price per gram: *$${price}*
-*Click Either One Once!(Dont Worry It Will Work) Then Type $Amount Or Grams*
+💲 *Price per gram:* *$${price}*
+*Click Either One Once!(*Example* 💵 *$20 Or 20* ⚖️ *2g Or 2*) Type Cash Amount Or Grams*
 
 ❗️*Note Anything Under 2 ($20) Will Be Auto Rejected*`;
 
@@ -658,7 +616,7 @@ if (q.data === 'amount_cash' || q.data === 'amount_grams') {
 
 🛍 *YOU CHOSEN* *${s.product}*
 
-💲 PRICE PER GRAM: *$${price}*
+💲 *PRICE PER GRAM:* *$${price}*
 
 ✏️ *Enter ${s.inputType === 'cash' ? '$ amount' : 'grams'} now*
 
@@ -707,12 +665,12 @@ bot.on('message', async msg => {
 🪴 *ORDER SUMMARY*
 ———————————————————
 
-🛍YOU CHOSE *${s.product}*
+🛍 *YOU CHOSE* *${s.product}*
 
 ⚖️ *AMOUNT*: *${s.grams}g*
 💲 *TOTAL*: *$${s.cash}*
 
-Press ✅ Confirm Order
+*Press* ✅ Confirm Order
 
 ———————————————————
 `;
@@ -761,11 +719,11 @@ Press ✅ Confirm Order
       const m = await bot.sendMessage(
         admin,
 `🧾 *NEW ORDER*
-User: @${users[id].username || id}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ⚪ Pending`,
+👤 *User:* @${users[id].username || id}
+🛍 *Product:* ${order.product}
+⚖️ *Grams:* ${order.grams}g
+💵 *Price:* $${order.cash}
+🚦 *Status:* ⚪ Pending`,
         {
           parse_mode: 'Markdown',
           reply_markup: {
@@ -795,10 +753,10 @@ Status: ⚪ Pending`,
     if (action === 'accept') {
       giveXP(userId, order.pendingXP);
       delete order.pendingXP;
-      bot.sendMessage(userId, '✅ Your order was accepted')
+      bot.sendMessage(userId, '✅ *Your Order Was Accepted*')
         .then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
     } else {
-      bot.sendMessage(userId, '❌ Your order was rejected')
+      bot.sendMessage(userId, '❌ *Your Order Was Rejected*')
         .then(m => setTimeout(() => bot.deleteMessage(userId, m.message_id).catch(() => {}), 5000));
       users[userId].orders = users[userId].orders.filter(o => o !== order);
     }
@@ -806,11 +764,11 @@ Status: ⚪ Pending`,
     for (const { admin, msgId } of order.adminMsgs) {
       bot.editMessageText(
 `🧾 *ORDER UPDATED*
-User: @${users[userId].username || userId}
-Product: ${order.product}
-Grams: ${order.grams}g
-Price: $${order.cash}
-Status: ${order.status}`,
+👤 *User:* @${users[userId].username || userId}
+🛍 *Product:* ${order.product}
+⚖️ *Grams:* ${order.grams}g
+💵 *Price:* $${order.cash}
+🚦 *Status:* ${order.status}`,
         { chat_id: admin, message_id: msgId, parse_mode: 'Markdown' }
       ).catch(() => {});
     }
@@ -840,7 +798,7 @@ bot.onText(/\/unban (.+)/, (msg, match) => {
   if (isNaN(uid)) uid = Object.keys(users).find(k => users[k].username?.toLowerCase() === target.replace('@','').toLowerCase());
   if (!uid || !users[uid]) return bot.sendMessage(id,'User not found');
   users[uid].banned = false; saveAll();
-  bot.sendMessage(id, `✅ Unbanned [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
+  bot.sendMessage(id, `✅ *Unbanned* [${users[uid].username||uid}](tg://user?id=${uid})`, {parse_mode:'Markdown'});
 });
 
 // ================= TRACK LAST ACTIVITY =================
@@ -861,7 +819,7 @@ bot.onText(/\/activeusers/, (msg) => {
 
   const activeUsers = Object.values(users).filter(u => u.lastActive && now - u.lastActive <= ONE_WEEK_MS);
 
-  bot.sendMessage(chatId, `📊 Active Users in last 7 days: *${activeUsers.length}*`, {
+  bot.sendMessage(chatId, `📊 *Active* Users in last *7 days*: *${activeUsers.length}*`, {
     parse_mode: 'Markdown'
   });
 });
@@ -881,7 +839,7 @@ bot.onText(/^\/stock\s+(.+)/is, (msg, match) => {
 📜 STRAIN: ${announcement}
 
 ━━━━━━━━━━━━━━━━━━
-🔥 Stay High • Stay Active
+🔥 Stay High *•* Stay Active
 🤖 *Order Here* @v1leshopbot
 ━━━━━━━━━━━━━━━━━━`;
 
@@ -907,7 +865,7 @@ bot.onText(/^\/publish\s+(.+)/is, (msg, match) => {
 ${announcement}
 
 ━━━━━━━━━━━━━━━━━━
-🔥 Stay High • Stay Active
+🔥 Stay High *•* Stay Active
 🤖 @v1leshopbot
 ━━━━━━━━━━━━━━━━━━`;
 
@@ -916,47 +874,6 @@ ${announcement}
   });
 
   bot.sendMessage(id, '✅ Announcement published');
-});
-
-// Helper to refresh all menus
-function refreshAllMenus() {
-  for (const uid in sessions) {
-    if (sessions[uid].mainMsgId) showMainMenu(Number(uid));
-  }
-}
-
-// Sprite Popperz
-bot.onText(/\/outsp/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Sprite_Popperz.inStock = false;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🔴 Sprite Popperz is now OUT OF STOCK.');
-});
-
-bot.onText(/\/insp/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Sprite_Popperz.inStock = true;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🟢 Sprite Popperz is now IN STOCK.');
-});
-
-// Killer Green Budz
-bot.onText(/\/outkgb/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Killer_Green_Budz.inStock = false;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🔴 Killer Green Budz is now OUT OF STOCK.');
-});
-
-bot.onText(/\/inkgb/i, (msg) => {
-  if (!ADMIN_IDS.includes(msg.from.id)) return;
-  meta.products.Killer_Green_Budz.inStock = true;
-  saveAll();
-  refreshAllMenus();
-  bot.sendMessage(msg.chat.id, '🟢 Killer Green Budz is now IN STOCK.');
 });
 
 // ================= /uptime =================
