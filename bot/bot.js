@@ -452,15 +452,7 @@ bot.onText(/\/start/, async (msg) => {
   if (!u.verified) {
     sessions[id] = sessions[id] || {};
     sessions[id].awaitingToken = true;
-    return bot.sendMessage(id, 
-                           
-                           "———————————————————"
-                           "🔑 *Access Denied* Enter *Token*:"
-                          
-                           "———————————————————"
-                           "*ᴼʷⁿᵉᵈ ᴮʸ ⱽᶠ*"
-    
-    );
+    return bot.sendMessage(id, "🔑 *Access Denied* Enter *Token*:");
   }
 
   return showMainMenu(id);
@@ -508,10 +500,7 @@ bot.on("message", async (msg) => {
 
   saveAll();
 
-  await bot.sendMessage(id, "✅ *Access Granted.*"
-                            "*Welcome To Our Shop*"
-                       
-);
+  await bot.sendMessage(id, "✅ *Access Granted.*");
   return showMainMenu(id);
 });
 
