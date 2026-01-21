@@ -1,4 +1,6 @@
-RUN THIS:
+RUN THIS OR MAKE SIMILAR REMAKE FOR DIFFERENT TERMINAL:
+
+// SUPPORTS ● TERMUX
 
 export BOT_TOKEN="bot.token.here"
 export ADMIN_IDS="ChatID.here,If.More"
