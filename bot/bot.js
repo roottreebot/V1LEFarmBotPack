@@ -367,32 +367,47 @@ async function showMainMenu(id, lbPage = 0) {
   const highestRole = getHighestRole(u);
 
   const dropoffStatus = meta.dropoff
-  ? '🚗 *DROP OFF:* 🟢 ON'
-  : '🚗 *DROP OFF:* 🔴 OFF';
-  
-  const orders = u.orders.length
-  ? u.orders.map(o => {
-      const isBulk = parseFloat(o.cash) >= 400;
-      const statusIcon = o.status === '✅ Accepted' ? '🟢' : '⚪';
+    ? '🚗 *DROP OFF:* 🟢 ON'
+    : '🚗 *DROP OFF:* 🔴 OFF';
 
-      return isBulk
-        ? `▏${statusIcon} *${o.product}* — 🧱 *Bulk Order*`
-        : `▏${statusIcon} *${o.product}* — ${o.grams}g — $${o.cash}`;
-    }).join('\n')
-  : '_No orders yet_';
+  const orders = u.orders.length
+    ? u.orders.map(o => {
+        const isBulk = parseFloat(o.cash) >= 400;
+        const statusIcon = o.status === '✅ Accepted' ? '🟢' : '⚪';
+        return isBulk
+          ? `▏${statusIcon} *${o.product}* — 🧱 *Bulk Order*`
+          : `▏${statusIcon} *${o.product}* — ${o.grams}g — $${o.cash}`;
+      }).join('\n')
+    : '_No orders yet_';
 
   const lb = getLeaderboard(lbPage);
 
+  // ================= INLINE BUTTONS WITH STOCK =================
   let kb = [
-  [
-    { text: `🥤 Sprite Popperz`, callback_data: 'product_Sprite Popperz' }
-  ],
-  [
-    { text: `🍃 Killer Green Budz`, callback_data: 'product_Killer Green Budz' }
-  ],
-  lb.buttons[0]
-];
+    [
+      {
+        text: meta.products?.Sprite_Popperz?.inStock
+          ? `🥤 Sprite Popperz`
+          : `🥤 Sprite Popperz 🔴`,
+        callback_data: meta.products?.Sprite_Popperz?.inStock
+          ? 'product_Sprite Popperz'
+          : 'stock_locked'
+      }
+    ],
+    [
+      {
+        text: meta.products?.Killer_Green_Budz?.inStock
+          ? `🍃 Killer Green Budz`
+          : `🍃 Killer Green Budz 🔴`,
+        callback_data: meta.products?.Killer_Green_Budz?.inStock
+          ? 'product_Killer Green Budz'
+          : 'stock_locked'
+      }
+    ],
+    lb.buttons[0]
+  ];
 
+  // ================= ADMIN STORE BUTTON =================
   if (ADMIN_IDS.includes(id)) {
     const storeBtn = meta.storeOpen
       ? { text: '🔴 Close: Store', callback_data: 'store_close' }
@@ -401,17 +416,25 @@ async function showMainMenu(id, lbPage = 0) {
   }
 
   meta.inviteTokens = meta.inviteTokens || [];
-  
-  // ================= DROP-OFF STATUS =================
-if (!meta.dropoff) meta.dropoff = false;
-  
-  const storeStatus = meta.storeOpen ? '😙💨 *STORE: 🟩 OPEN*' : '😙❌️ *STORE: 🟥 CLOSED*';
+
+  meta.products = meta.products || {
+  Sprite_Popperz: { inStock: true },
+  Killer_Green_Budz: { inStock: true }
+};
+
+  // ================= STORE STATUS =================
+  if (!meta.dropoff) meta.dropoff = false;
+
+  const storeStatus = meta.storeOpen
+    ? '😙💨 *STORE: 🟢 OPEN*'
+    : '😙❌ *STORE: 🔴 CLOSED*';
 
   const lotteryLine = getLotteryMenuText();
 
-await sendOrEdit(
-  id,
-`
+  // ================= SEND OR EDIT MENU =================
+  await sendOrEdit(
+    id,
+    `
 ———————————————————
 ▏📊 *STATS* ● /userprofile
 ———————————————————
@@ -505,11 +528,21 @@ bot.on("message", async (msg) => {
 });
 
 // ================= CALLBACKS =================
-bot.on('callback_query', async q => {
-  const id = q.message.chat.id;
-  ensureUser(id, q.from.username);
-  const s = sessions[id] || (sessions[id] = {});
-  await bot.answerCallbackQuery(q.id).catch(() => {});
+bot.on('callback_query', (q) => {
+  const id = q.from.id;
+
+  if (q.data === 'stock_locked') {
+    bot.answerCallbackQuery(q.id, { text: '❌ This product is out of stock.', show_alert: true });
+    return;
+  }
+
+  // Existing product handlers
+  if (q.data.startsWith('product_')) {
+    const productName = q.data.replace('product_', '');
+    bot.answerCallbackQuery(q.id, { text: `${productName} Info` });
+    bot.sendMessage(id, `📝 *${productName}* info goes here`, { parse_mode: 'Markdown' });
+  }
+});
 
   // ================= NAVIGATION =================
   if (q.data === 'reload') {
@@ -864,6 +897,88 @@ ${announcement}
 
   bot.sendMessage(id, '✅ Announcement published');
 });
+
+// Sprite Popperz
+bot.onText(/\/outsp/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Sprite_Popperz.inStock = false;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🔴 Sprite Popperz is now OUT OF STOCK.');
+});
+
+bot.onText(/\/insp/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Sprite_Popperz.inStock = true;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🟢 Sprite Popperz is now IN STOCK.');
+});
+
+// Killer Green Budz
+bot.onText(/\/outkgb/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Killer_Green_Budz.inStock = false;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🔴 Killer Green Budz is now OUT OF STOCK.');
+});
+
+bot.onText(/\/inkgb/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Killer_Green_Budz.inStock = true;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🟢 Killer Green Budz is now IN STOCK.');
+});
+
+// Helper to refresh all menus
+function refreshAllMenus() {
+  for (const uid in sessions) {
+    if (sessions[uid].mainMsgId) showMainMenu(Number(uid));
+  }
+}
+
+// Sprite Popperz
+bot.onText(/\/outsp/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Sprite_Popperz.inStock = false;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🔴 Sprite Popperz is now OUT OF STOCK.');
+});
+
+bot.onText(/\/insp/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Sprite_Popperz.inStock = true;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🟢 Sprite Popperz is now IN STOCK.');
+});
+
+// Killer Green Budz
+bot.onText(/\/outkgb/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Killer_Green_Budz.inStock = false;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🔴 Killer Green Budz is now OUT OF STOCK.');
+});
+
+bot.onText(/\/inkgb/i, (msg) => {
+  if (!ADMIN_IDS.includes(msg.from.id)) return;
+  meta.products.Killer_Green_Budz.inStock = true;
+  saveAll();
+  refreshAllMenus();
+  bot.sendMessage(msg.chat.id, '🟢 Killer Green Budz is now IN STOCK.');
+});
+
+// Helper to refresh all menus
+function refreshAllMenus() {
+  for (const uid in sessions) {
+    if (sessions[uid].mainMsgId) showMainMenu(Number(uid));
+  }
+}
 
 // ================= /uptime =================
 bot.onText(/\/uptime/, (msg) => {
