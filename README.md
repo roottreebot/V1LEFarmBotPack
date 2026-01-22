@@ -38,3 +38,5 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 
 ## User Commands
 ![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/b7b8d5b13ab6eb4b3ac02282c1e61a308904de77/img/Screenshot_20260122_200210_Telegram.jpg)
+
+## Stats
