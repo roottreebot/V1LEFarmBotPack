@@ -10,10 +10,12 @@ export ADMIN_IDS="ChatID.here,If.More"
 bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack/refs/heads/main/bootstrap.sh)"
 
 ## PM2 CMDS:
-   pm2 logs v1lefarmbot
-   pm2 start v1lefarmbot
-   pm2 stop v1lefarmbot
-   pm2 update v1lefarmbot
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/b989fd5b28a5aabae66826120eb8bf4614b6b213/img/pm2-logo-1.webp)
+   
+   pm2 logs v1lefarmbot,
+   pm2 start v1lefarmbot,
+   pm2 stop v1lefarmbot,
+   pm2 update v1lefarmbot,
 
 ## // FILES
 package.json — Node.js dependencies
