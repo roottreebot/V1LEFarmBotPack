@@ -44,3 +44,6 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 
 ## Orders
 ![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/e7fdffbac1059cbdd48ad60adf92f2714329abd0/img/Screenshot_20260122_200229_Telegram.jpg)
+
+## Leaderboard
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/25762715ddc29bbe8a4c8935730242025e018e17/img/Screenshot_20260122_200252_Telegram.jpg)
