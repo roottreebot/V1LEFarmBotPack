@@ -2,7 +2,7 @@
 RUN THIS OR MAKE SIMILAR REMAKE FOR DIFFERENT TERMINAL:
 
 ## // SUPPORTS ● TERMUX
-![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/909c8e0edb8ceb64e65a83e4c90cc0fc8d8bafa2/Termux.logo.svg)
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/24dae9df139ca79342d38e49892acec30de3c048/img/Termux.logo.svg)
 
 export BOT_TOKEN="bot.token.here"
 export ADMIN_IDS="ChatID.here,If.More"
