@@ -1,4 +1,4 @@
-// === ROOTTREE BOT (FINAL: v2.1.2 • build 1) ===
+// === V1LEFarmBotPack (FINAL: v2.1.2 • build 1) ===
 const TelegramBot = require('node-telegram-bot-api');
 // Track bot start time
 const BOT_START_TIME = Date.now();
@@ -30,13 +30,13 @@ const levelRanks = [
   { min: 30,   name: '🥇 *Gold I*' },
   { min: 35,   name: '🥇 *Gold II*' },
   { min: 40,   name: '🥇 *Gold III*' },
-  { min: 50,  name: '💎 *Platnium*' },
-  { min: 100,  name: '💎 *Platnium I*' },
-  { min: 140,  name: '💎 *Platnium II*' },
-  { min: 165,  name: '💎 *Platnium III*' },
-  { min: 250,  name: '🌌 *Galaxy*' },
-  { min: 300,  name: '🌌 *Galaxy I*' },
-  { min: 350,  name: '🌌 *Galaxy II*' },
+  { min: 50,   name: '💎 *Platnium*' },
+  { min: 60,   name: '💎 *Platnium I*' },
+  { min: 100,  name: '💎 *Platnium II*' },
+  { min: 120,  name: '💎 *Platnium III*' },
+  { min: 150,  name: '🌌 *Galaxy*' },
+  { min: 200,  name: '🌌 *Galaxy I*' },
+  { min: 300,  name: '🌌 *Galaxy II*' },
   { min: 450,  name: '🌌 *Galaxy III*' },
   { min: 600,  name: '🌌 *Galaxy IIII*' },
   { min: 1000, name: '🌌 *Galaxy IV*' },
@@ -241,13 +241,13 @@ function findUserIdByUsername(username) {
 }
 
 function getHighestRole(user) {
-  if (!user.roles || user.roles.length === 0) return "_No role_";
+  if (!user.roles || user.roles.length === 0) return "None";
 
   // ROLE_SHOP keys in order of increasing price
   const roleNames = Object.keys(ROLE_SHOP);
 
   // Find the highest role the user owns
-  let highest = "_No role_";
+  let highest = "None";
   for (const role of roleNames) {
     if (user.roles.includes(role)) highest = role;
   }
