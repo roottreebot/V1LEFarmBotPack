@@ -1,5 +1,3 @@
-![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/e2e2db0791213986c670dfb6ef9cbe02d61dcc63/img/cropped_circle_image%20(8).png)
-
 ## NOTE
 RUN THIS OR MAKE SIMILAR REMAKE FOR DIFFERENT TERMINAL:
 
