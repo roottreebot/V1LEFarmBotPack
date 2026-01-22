@@ -47,3 +47,6 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 
 ## Leaderboard
 ![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/25762715ddc29bbe8a4c8935730242025e018e17/img/Screenshot_20260122_200252_Telegram.jpg)
+
+## User Inline Buttons
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/51ac659d316b7280ffc7a74c3dd2b3c60d7a5b69/img/Screenshot_20260122_200254_Telegram.jpg)
