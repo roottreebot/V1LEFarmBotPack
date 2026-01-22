@@ -52,3 +52,10 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 ![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/51ac659d316b7280ffc7a74c3dd2b3c60d7a5b69/img/Screenshot_20260122_200254_Telegram.jpg)
 
 ## CREATED BY V1LE FARM // FOUNDER V1LE
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/8e39c256a09e7e73c48b6ce1b8abb4766b3a7d49/img/cropped_circle_image%20(8).png)
+
+## Version
+v2.1.2 • build 1
+
+## devs
+v1ledev
