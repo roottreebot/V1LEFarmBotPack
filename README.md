@@ -22,16 +22,19 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
 ## // FILES
 ![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/8b4e93911c8b312196924afcc579510c8590eac5/img/Screenshot_20260122_195454_Brave.jpg)
 
-package.json — Node.js dependencies
-gitignore — ignored files
+● package.json — Node.js dependencies
+● gitignore — ignored files
 
 ## /bot
-bot.js — main bot script
+● bot.js — main bot script
 
 ## /scripts
-install_bot.sh — installer
-bootstrap.sh — initial bootstrap
+● install_bot.sh — installer
+● bootstrap.sh — initial bootstrap
 
 ## /config
-meta.json - meta
-user.json - users
+● meta.json - meta
+● user.json - users
+
+## FEAUTURES + DESIGN
+
