@@ -20,6 +20,8 @@ bash -c "$(curl -s https://raw.githubusercontent.com/roottreebot/V1LEFarmBotPack
    pm2 update v1lefarmbot,
 
 ## // FILES
+![imagealt](https://github.com/v1ledev/V1LEFarmBotPack/blob/8b4e93911c8b312196924afcc579510c8590eac5/img/Screenshot_20260122_195454_Brave.jpg)
+
 package.json — Node.js dependencies
 gitignore — ignored files
 
